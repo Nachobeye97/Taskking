@@ -1,20 +1,20 @@
 import type { Config } from "tailwindcss";
 
 const config = {
-  darkMode: ["class"],
+  darkMode: ["class"], // Modo oscuro activado por clase
   content: [
-    "./pages/**/*.{ts,tsx}",
+    "./pages/**/*.{ts,tsx}", // Asegúrate de que todas las rutas sean correctas
     "./components/**/*.{ts,tsx}",
     "./app/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
   ],
-  prefix: "",
+  prefix: "", // No añadimos un prefijo a las clases de Tailwind
   theme: {
     container: {
-      center: true,
+      center: true, // Centra los contenedores por defecto
       padding: "2rem",
       screens: {
-        "2xl": "1400px",
+        "2xl": "1400px", // Añade configuraciones para pantallas grandes
       },
     },
     extend: {
@@ -54,9 +54,9 @@ const config = {
         },
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        lg: "var(--radius)", // Bordes grandes
+        md: "calc(var(--radius) - 2px)", // Bordes medianos
+        sm: "calc(var(--radius) - 4px)", // Bordes pequeños
       },
       keyframes: {
         "accordion-down": {
@@ -69,12 +69,16 @@ const config = {
         },
       },
       animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
+        "accordion-down": "accordion-down 0.2s ease-out", // Animación de apertura
+        "accordion-up": "accordion-up 0.2s ease-out", // Animación de cierre
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
-} satisfies Config;
+  plugins: [
+    require("tailwindcss-animate"), // Plugin para animaciones
+    // Asegúrate de que DaisyUI está correctamente instalado si lo usas
+    require("daisyui"),
+  ],
+};
 
 export default config;

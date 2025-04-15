@@ -7,7 +7,6 @@ import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import Link from "next/link";
 import "./globals.css"; // Asegúrate de que la ruta al CSS es correcta
-import "../app/layout.css"; // Ruta a tu nuevo archivo CSS
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -39,11 +38,14 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <main>
-            <div>
-              <nav>
-                <div>
-                  <div className="flex gap-5 items-center font-semibold">
-                    <Link href={"/"}>Next.js Supabase Starter</Link>
+            <div className="flex flex-col min-h-screen">
+              {/* Navbar */}
+              <nav className="bg-[#DFDED4] p-4 shadow-md">
+                <div className="flex justify-between items-center max-w-6xl mx-auto">
+                  <div className="flex items-center gap-5 font-semibold">
+                    <Link href={"/"} className="text-xl">
+                      Next.js Supabase Starter
+                    </Link>
                     <div className="flex items-center gap-2">
                       <DeployButton />
                     </div>
@@ -52,10 +54,11 @@ export default function RootLayout({
                 </div>
               </nav>
 
-              {/* Fondo degradado morado y caja centrada */}
-              <div className="main-content">{children}</div>
+              {/* Main Content */}
+              <div className="flex-1 py-8 bg-[#DFDED4]">{children}</div>
 
-              <footer>
+              {/* Footer */}
+              <footer className="bg-[#DFDED4] py-6 text-center">
                 <p>
                   Powered by{" "}
                   <a
