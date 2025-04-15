@@ -1,0 +1,92 @@
+/* Fondo completo y diseño del contenedor principal */
+.profile-container {
+    background: linear-gradient(to right, #6a1b9a, #8e24aa, #c2185b);
+    color: white;
+    font-family: 'Geist', sans-serif;
+    padding: 2rem;
+    border-radius: 1rem;
+    max-width: 600px;
+    margin: 3rem auto;
+    text-align: center;
+  }
+  
+  /* Título del perfil */
+  .profile-container h1 {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 2rem;
+    text-transform: uppercase;
+  }
+  
+  /* Estilo para los campos de entrada */
+  .input-field {
+    background-color: #f5f5f5;
+    color: #333;
+    padding: 12px 24px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    border: 1px solid #e0e0e0;
+    width: 100%;
+  }
+  
+  .input-field:focus {
+    outline: none;
+    border-color: #8e24aa;
+    background-color: #ffffff;
+  }
+  
+  /* Estilo de los botones */
+  .submit-button {
+    background-color: #8e24aa;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    margin-top: 16px;
+    width: 100%;
+    transition: background-color 0.3s ease;
+  }
+  
+  .submit-button:hover {
+    background-color: #7b1fa2;
+  }
+  
+  /* Estilo de la imagen de perfil */
+  .profile-image-container {
+    margin-bottom: 2rem;
+  }
+  
+  .profile-image {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 5px solid #ffffff;
+    object-fit: cover;
+    margin-bottom: 1rem;
+  }
+  
+  .change-photo-button {
+    background-color: #8e24aa;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .change-photo-button:hover {
+    background-color: #7b1fa2;
+  }
+  
+  /* Estilo de los enlaces */
+  .link {
+    margin-top: 16px;
+    color: #64b5f6;
+    text-decoration: underline;
+  }
+  
+  .link:hover {
+    color: #42a5f5;
+  }
+  

@@ -4,6 +4,8 @@ body {
   color: white;
   font-family: 'Geist', sans-serif;
   min-height: 100vh;
+  margin: 0;
+  padding: 0;
 }
 
 /* Estilo principal de la página del dashboard */
@@ -15,25 +17,31 @@ body {
   min-height: 100vh;
   padding: 1.5rem;
   position: relative;
+  text-align: center;
 }
 
 /* Título principal */
 .dashboard-title {
-  font-size: 2.5rem;
-  font-weight: bold;
+  font-size: 3rem;
+  font-weight: 700;
   margin-top: -230px; /* Espaciado desde la parte superior */
   margin-bottom: 2rem;
   text-align: center;
-  color: white;
-  text-transform: uppercase; /* Opcional: para mayor estilo */
+  color: #ff4081; /* Color brillante (rosa vibrante) */
+  text-transform: uppercase;
+  letter-spacing: 3px; /* Espaciado entre letras */
+  text-shadow: 3px 3px 8px rgba(0, 0, 0, 0.2); /* Sombra suave para resaltar */
 }
 
 /* Subtítulo o descripción */
 .dashboard-description {
-  font-size: 1.125rem;
+  font-size: 1.25rem;
   margin-bottom: 2.5rem;
   text-align: center;
   color: #f1f1f1;
+  line-height: 1.6;
+  letter-spacing: 1px;
+  opacity: 0.8; /* Leve ligera opacidad */
 }
 
 /* Estilo de las opciones */
@@ -42,6 +50,7 @@ body {
   gap: 1.5rem;
   justify-content: center;
   margin-top: 2rem;
+  transition: transform 0.3s ease;
 }
 
 /* Estilo de los botones de las opciones */
@@ -52,11 +61,19 @@ body {
   border-radius: 0.5rem;
   font-size: 1.125rem;
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  transition: background-color 0.3s ease, transform 0.3s ease;
+  border: none;
 }
 
 .option-button:hover {
   background-color: #f1f1f1;
+  transform: scale(1.05); /* Escala el botón ligeramente al pasar el mouse */
+}
+
+.option-button:active {
+  background-color: #8e24aa;
+  color: white;
+  transform: scale(0.95); /* Efecto de reducción al hacer clic */
 }
 
 /* Estilo del botón de menú */
@@ -64,7 +81,7 @@ body {
   position: absolute;
   top: -3rem; /* Mueve el botón hacia la parte superior */
   right: -20rem; /* Ajusta la posición hacia la derecha */
-  width: 3.5rem; /* Tamaño mayor para mejor apariencia */
+  width: 3.5rem;
   height: 3.5rem;
   background: linear-gradient(to bottom, #ffffff, #8e24aa); /* Fondo blanco */
   color: #6a1b9a; /* Color morado para un toque de estilo */
@@ -76,7 +93,7 @@ body {
   font-size: 1.25rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease-in-out; /* Suaviza la animación */
+  transition: all 0.3s ease-in-out;
   border: 2px solid #8e24aa; /* Agrega un borde morado */
 }
 

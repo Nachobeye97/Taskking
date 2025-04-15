@@ -53,9 +53,7 @@ export default function RootLayout({
               </nav>
 
               {/* Fondo degradado morado y caja centrada */}
-              <div className="main-content">
-                {children}
-              </div>
+              <div className="main-content">{children}</div>
 
               <footer>
                 <p>
