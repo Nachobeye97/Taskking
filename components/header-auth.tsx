@@ -63,14 +63,14 @@ export default async function AuthButton() {
       <Button
         size="sm"
         variant={"outline"}
-        className="px-6 py-2 border-2 border-purple-600 text-purple-600 rounded-lg shadow-md transition-all hover:bg-purple-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+        className="px-6 py-2 border-2 border-primary text-black rounded-lg shadow-md transition-all hover:bg-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
       >
         <Link href="/auth-pages/sign-in">Sign in</Link>
       </Button>
       <Button
         size="sm"
         variant={"default"}
-        className="px-6 py-2 bg-purple-700 text-white rounded-lg shadow-md transition-all hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-600"
+        className="px-6 py-2 border-2 border-primary text-black rounded-lg shadow-md transition-all hover:bg-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
       >
         <Link href="/auth-pages/sign-up">Sign up</Link>
       </Button>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion"; // Importamos framer-motion
 import "../../globals.css";
+import Link from "next/link";
 
 export default function Dashboard() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -32,12 +33,12 @@ export default function Dashboard() {
           style={{ position: "absolute", top: "8.7rem", right: "6%" }}
         >
           <li>
-            <a
+            <Link
               className="btn btn-outline py-2 px-4 text-x2 transform transition duration-300 ease-out border-transparent text-primary hover:bg-primary hover:text-white"
-              onClick={() => router.push("/auth-pages/profile")} // Redirige al perfil
+              href={"/auth-pages/profile"}
             >
               Perfil
-            </a>
+            </Link>
           </li>
           <li>
             <a
