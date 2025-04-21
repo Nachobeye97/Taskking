@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient"; // Asegúrate de tener la instancia de Supabase configurada correctamente
+import { supabase } from "@/lib/supabaseClient"; // Asegúrate de tener esta importación
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import Link from "next/link"; // Usamos Link de Next.js
 
 export default function SignUp() {
   const [email, setEmail] = useState("");
@@ -65,8 +65,10 @@ export default function SignUp() {
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-[#DFDED4] p-6">
-      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
-        <h1 className="text-2xl font-bold mb-4 text-center text-[#FFA500]">
+      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-lg mt-0">
+        {" "}
+        {/* Cambié mt-10 a mt-0 para pegarlo más arriba */}
+        <h1 className="text-2xl font-bold mb-4 text-center text-primary">
           Registrarse
         </h1>
         {errorMessage && (
@@ -78,52 +80,55 @@ export default function SignUp() {
             placeholder="Nombre"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
-            className="p-4 rounded-lg mb-4 border border-[#e0e0e0] bg-[#f5f5f5] text-black focus:outline-none focus:border-[#FFA500] transition duration-300"
+            className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
           />
           <input
             type="text"
             placeholder="Apellidos"
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
-            className="p-4 rounded-lg mb-4 border border-[#e0e0e0] bg-[#f5f5f5] text-black focus:outline-none focus:border-[#FFA500] transition duration-300"
+            className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
           />
           <input
             type="text"
             placeholder="Teléfono"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="p-4 rounded-lg mb-4 border border-[#e0e0e0] bg-[#f5f5f5] text-black focus:outline-none focus:border-[#FFA500] transition duration-300"
+            className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
           />
           <input
             type="email"
             placeholder="Correo"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="p-4 rounded-lg mb-4 border border-[#e0e0e0] bg-[#f5f5f5] text-black focus:outline-none focus:border-[#FFA500] transition duration-300"
+            className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
           />
           <input
             type="password"
             placeholder="Contraseña"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="p-4 rounded-lg mb-4 border border-[#e0e0e0] bg-[#f5f5f5] text-black focus:outline-none focus:border-[#FFA500] transition duration-300"
+            className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
           />
           <input
             type="password"
             placeholder="Confirmar Contraseña"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="p-4 rounded-lg mb-4 border border-[#e0e0e0] bg-[#f5f5f5] text-black focus:outline-none focus:border-[#FFA500] transition duration-300"
+            className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
           />
-          <button type="submit" className="btn btn-dash btn-warning">
+          <button
+            type="submit"
+            className="px-6 py-2 border-2 border-primary text-primary rounded-lg shadow-md transition-all hover:bg-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+          >
             Registrarse
           </button>
         </form>
-        <p className="mt-4 text-center text-[#FFA500]">
+        <p className="mt-4 text-center text-primary">
           ¿Ya tienes cuenta?{" "}
           <Link
             href="/auth-pages/sign-in"
-            className="text-[#FFA500] hover:text-[#42a5f5] underline"
+            className="text-primary hover:text-[#42a5f5] underline"
           >
             Inicia sesión aquí
           </Link>

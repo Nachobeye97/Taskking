@@ -43,8 +43,8 @@ export default function RootLayout({
               <nav className="bg-[#DFDED4] p-4 shadow-md">
                 <div className="flex justify-between items-center max-w-6xl mx-auto">
                   <div className="flex items-center gap-5 font-semibold">
-                    <Link href={"/"} className="text-xl">
-                      Next.js Supabase Starter
+                    <Link href={"/"} className="text-xl text-primary">
+                      TASKKING
                     </Link>
                     <div className="flex items-center gap-2">
                       <DeployButton />

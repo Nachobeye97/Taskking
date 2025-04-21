@@ -1,79 +1,81 @@
-import { signOutAction } from "@/app/actions";
-import { hasEnvVars } from "@/utils/supabase/check-env-vars";
+"use client";
+
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabaseClient"; // Asegúrate de tener esta importación
 import Link from "next/link"; // Usamos Link de Next.js
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { createClient } from "@/utils/supabase/server";
+import { Button } from "./ui/button"; // Asegúrate de que tu botón esté correctamente importado
 
-export default async function AuthButton() {
-  const supabase = await createClient();
+export default function AuthButton() {
+  const [user, setUser] = useState<any | null>(null); // Guardar el usuario
+  const [loading, setLoading] = useState(true); // Estado para manejar el loading
+  const [errorMessage, setErrorMessage] = useState<string | null>(null); // Para manejar errores
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Hook para obtener el usuario actual de Supabase
+  useEffect(() => {
+    const fetchUser = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      setUser(session?.user ?? null); // Guardar el usuario de la sesión
+      setLoading(false); // Terminar el loading
+    };
 
-  if (!hasEnvVars) {
-    return (
-      <>
-        <div className="flex gap-4 items-center">
-          <div>
-            <Badge
-              variant={"default"}
-              className="font-normal pointer-events-none"
-            >
-              Please update .env.local file with anon key and url
-            </Badge>
-          </div>
-          <div className="flex gap-4">
-            {/* Botones con colores del gradiente */}
-            <Button
-              size="sm"
-              variant={"outline"}
-              disabled
-              className="px-6 py-2 border-2 border-purple-600 text-purple-600 rounded-lg shadow-md transition-all hover:bg-purple-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
-            >
-              <Link href="/auth-pages/sign-in">Sign in</Link>
-            </Button>
-            <Button
-              size="sm"
-              variant={"default"}
-              disabled
-              className="px-6 py-2 bg-purple-700 text-white rounded-lg shadow-md transition-all hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-600"
-            >
-              <Link href="/auth-pages/sign-up">Sign up</Link>
-            </Button>
-          </div>
-        </div>
-      </>
-    );
+    // Llamar la función para obtener la sesión al cargar el componente
+    fetchUser();
+
+    // Escuchar los cambios de autenticación y actualizar el estado en tiempo real
+    supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null); // Actualizar el estado con el nuevo usuario
+    });
+  }, []);
+
+  // Función de cierre de sesión
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      setErrorMessage("Error al cerrar sesión: " + error.message);
+    }
+  };
+
+  if (loading) {
+    return <div>Cargando...</div>; // Muestra un mensaje mientras se carga el estado de sesión
   }
 
-  return user ? (
-    <div className="flex items-center gap-4">
-      Hey, {user.email}!
-      <form action={signOutAction}>
-        <Button type="submit" variant={"outline"}>
-          Sign out
-        </Button>
-      </form>
-    </div>
-  ) : (
-    <div className="flex gap-4">
-      {/* Botones con colores del gradiente */}
-      <Button
-        size="sm"
-        variant={"outline"}
-        className="px-6 py-2 border-2 border-primary text-black rounded-lg shadow-md transition-all hover:bg-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
-      >
-        <Link href="/auth-pages/sign-in">Sign in</Link>
-      </Button>
-      <Button
-        size="sm"
-        variant={"default"}
-        className="px-6 py-2 border-2 border-primary text-black rounded-lg shadow-md transition-all hover:bg-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
-      >
-        <Link href="/auth-pages/sign-up">Sign up</Link>
-      </Button>
-    </div>
+  return (
+    <>
+      {user ? (
+        // Mostrar cuando el usuario está autenticado
+        <div className="flex items-center gap-4">
+          <span className="text-primary font-bold text-lg">Bienvenido,</span>
+          <span className="text-primary font-semibold text-lg">
+            {user.email}
+          </span>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSignOut();
+            }}
+          ></form>
+        </div>
+      ) : (
+        // Mostrar los botones de inicio de sesión y registro cuando no hay un usuario
+        <div className="flex gap-4">
+          <Button
+            size="sm"
+            variant={"outline"}
+            className="px-6 py-2 bg-primary text-white rounded-lg shadow-md transition-all hover:bg-primary focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <Link href="/auth-pages/sign-in">Iniciar sesión</Link>
+          </Button>
+          <Button
+            size="sm"
+            variant={"outline"}
+            className="px-6 py-2 bg-primary text-white rounded-lg shadow-md transition-all hover:bg-primary focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <Link href="/auth-pages/sign-up">Registrarse</Link>
+          </Button>
+        </div>
+      )}
+    </>
   );
 }

@@ -5,13 +5,21 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion"; // Importamos framer-motion
 import "../../globals.css";
 import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient"; // Asegúrate de que tu importación de supabase esté correcta
 
 export default function Dashboard() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const router = useRouter();
 
+  // Función para cerrar sesión usando el botón que ya has creado
   const handleLogout = async () => {
-    router.push("/auth-pages/sign-in"); // Redirigir al login después de cerrar sesión
+    const { error } = await supabase.auth.signOut(); // Cerrar sesión con Supabase
+
+    if (error) {
+      console.error("Error al cerrar sesión:", error.message);
+    } else {
+      router.push("/auth-pages/sign-in"); // Redirigir al login después de cerrar sesión
+    }
   };
 
   return (
@@ -19,7 +27,7 @@ export default function Dashboard() {
       {/* Menú de opciones (perfil y cerrar sesión) */}
       <button
         onClick={() => setIsMenuOpen(!isMenuOpen)}
-        className="absolute top-1/8 right-5 w-14 h-14  text-primary rounded-full flex items-center justify-center text-xl font-semibold shadow-lg transition-all duration-300 ease-in-out border-2 border-primary hover:scale-110 hover:bg-primary hover:text-white"
+        className="absolute top-1/8 right-5 w-14 h-14 text-primary rounded-full flex items-center justify-center text-xl font-semibold shadow-lg transition-all duration-300 ease-in-out border-2 border-primary hover:scale-110 hover:bg-primary hover:text-white"
         style={{ position: "absolute", top: "10%", right: "5%" }}
       >
         T {/* Menú desplegable */}
@@ -41,12 +49,12 @@ export default function Dashboard() {
             </Link>
           </li>
           <li>
-            <a
+            <button
               className="btn btn-outline py-2 px-4 text-x2 transform transition duration-300 ease-out border-transparent text-primary hover:bg-primary hover:text-white"
               onClick={handleLogout} // Cerrar sesión
             >
               Cerrar sesión
-            </a>
+            </button>
           </li>
         </ul>
       )}
