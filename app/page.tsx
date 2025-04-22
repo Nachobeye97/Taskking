@@ -1,10 +1,34 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient"; // Asegúrate de que esta importación esté correcta
 import { motion } from "framer-motion";
 
 export default function Home() {
+  const [isLoading, setIsLoading] = useState(true); // Para saber si estamos verificando la sesión
+  const router = useRouter();
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: session } = await supabase.auth.getSession();
+
+      // Si la sesión está activa, redirigir al usuario al dashboard
+      if (session?.session?.user) {
+        router.push("/auth-pages/dashboard");
+      }
+
+      setIsLoading(false); // Terminar la carga después de verificar
+    };
+
+    checkSession(); // Verificar la sesión cuando la página cargue
+  }, [router]);
+
+  if (isLoading) {
+    return <div>Cargando...</div>; // Mostrar un mensaje de carga mientras verificamos la sesión
+  }
+
   return (
-    // Fondo completo con color #DFDED4
     <div className="min-h-screen bg-[#DFDED4] flex justify-center items-start p-6">
       {/* Caja transparente que contiene el título y el subtítulo */}
       <motion.div
@@ -15,7 +39,7 @@ export default function Home() {
       >
         {/* Título con animación */}
         <motion.h1
-          className="text-7xl font-bold text-primary uppercase tracking-wider mb-4 mt-20 text-shadow-lg" // Título más cerca de la parte superior
+          className="text-7xl font-bold text-primary uppercase tracking-wider mb-4 mt-20 text-shadow-lg"
           initial={{ opacity: 0, y: -50 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1 }}

@@ -92,8 +92,8 @@ export default function Dashboard() {
         transition={{ duration: 1, delay: 0.5 }}
       >
         <motion.button
-          className="btn btn-outline py-3 px-6 text-xl transform transition duration-300 ease-out border-2 border-primary text-primary hover:bg-primary hover:text-white"
           onClick={() => router.push("/proyecto-personal")}
+          className="btn btn-outline py-3 px-6 text-xl transform transition duration-300 ease-out border-2 border-primary text-primary hover:bg-primary hover:text-white"
         >
           Proyecto Personal
         </motion.button>

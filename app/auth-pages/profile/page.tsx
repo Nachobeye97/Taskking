@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabaseClient"; // Asegúrate de que la ruta esté correcta
+import { supabase } from "@/lib/supabaseClient"; // Asegúrate de que tu importación de supabase esté correcta
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 
 export default function EditProfile() {
   const [userData, setUserData] = useState<any | null>(null); // Para almacenar los datos del usuario
@@ -97,69 +98,79 @@ export default function EditProfile() {
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-[#DFDED4] p-6">
-      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
-        <h1 className="text-2xl font-bold mb-4 text-center text-[#FFA500]">
-          Editar Perfil
-        </h1>
+      {/* Botón para volver al dashboard */}
+      <button
+        onClick={() => router.push("/auth-pages/dashboard")}
+        className="absolute top-20 left-12 text-primary bg-transparent border-2 border-primary px-4 py-2 rounded-md transition-all hover:bg-primary hover:text-white"
+      >
+        Volver
+      </button>
 
-        {/* Formulario editable */}
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={(e) => e.preventDefault()}
-        >
-          <div className="mb-4">
-            <label className="block font-medium text-[#FFA500]">Nombre</label>
-            <input
-              type="text"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              className="p-4 rounded-lg mb-4 border border-[#e0e0e0] bg-[#f5f5f5] text-black focus:outline-none focus:border-[#FFA500] transition duration-300"
-            />
-          </div>
+      <div className="bg-[#DFDED4] p-6 min-h-screen">
+        <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+          <h1 className="text-2xl font-bold mb-4 text-center text-primary">
+            Editar Perfil
+          </h1>
 
-          <div className="mb-4">
-            <label className="block font-medium text-[#FFA500]">
-              Apellidos
-            </label>
-            <input
-              type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              className="p-4 rounded-lg mb-4 border border-[#e0e0e0] bg-[#f5f5f5] text-black focus:outline-none focus:border-[#FFA500] transition duration-300"
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block font-medium text-[#FFA500]">Teléfono</label>
-            <input
-              type="text"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="p-4 rounded-lg mb-4 border border-[#e0e0e0] bg-[#f5f5f5] text-black focus:outline-none focus:border-[#FFA500] transition duration-300"
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block font-medium text-[#FFA500]">
-              Correo Electrónico
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="p-4 rounded-lg mb-4 border border-[#e0e0e0] bg-[#f5f5f5] text-black focus:outline-none focus:border-[#FFA500] transition duration-300"
-            />
-          </div>
-
-          {/* Botón para actualizar el perfil */}
-          <button
-            type="button"
-            onClick={handleUpdateProfile}
-            className="bg-[#8e24aa] text-white py-3 px-6 rounded-lg hover:bg-[#7b1fa2] transition-all duration-300"
+          {/* Formulario editable */}
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={(e) => e.preventDefault()}
           >
-            Guardar Cambios
-          </button>
-        </form>
+            <div className="mb-4">
+              <label className="block font-medium text-primary">Nombre</label>
+              <input
+                type="text"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block font-medium text-primary">
+                Apellidos
+              </label>
+              <input
+                type="text"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block font-medium text-primary">Teléfono</label>
+              <input
+                type="text"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block font-medium text-primary">
+                Correo Electrónico
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
+              />
+            </div>
+
+            {/* Botón para actualizar el perfil */}
+            <button
+              type="button"
+              onClick={handleUpdateProfile}
+              className="bg-primary text-white py-3 px-6 rounded-lg hover:bg-secondary transition-all duration-300"
+            >
+              Guardar Cambios
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
