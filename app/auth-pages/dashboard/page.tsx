@@ -100,9 +100,9 @@ export default function Dashboard() {
 
         <motion.button
           className="btn btn-outline py-3 px-6 text-xl transform transition duration-300 ease-out border-2 border-primary text-primary hover:bg-primary hover:text-white"
-          onClick={() => router.push("/empresa")}
+          onClick={() => router.push("/proyecto-grupal")}
         >
-          Empresa
+          Proyecto Grupal
         </motion.button>
       </motion.div>
     </div>

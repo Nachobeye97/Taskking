@@ -237,7 +237,7 @@ const SortableTask = memo(
 
 SortableTask.displayName = "SortableTask";
 
-export default function ProyectoPersonal() {
+export default function ProyectoGrupal() {
   const [projectData, setProjectData] = useState<Project[]>([]);
   const [task, setTask] = useState<string>("");
   const [taskStatus, setTaskStatus] = useState<string>("todo");
@@ -274,12 +274,12 @@ export default function ProyectoPersonal() {
         .from("projects")
         .select("*")
         .eq("user_id", session.data.session.user.id)
-        .eq("type", "personal")
+        .eq("type", "group")
         .order("created_at", { ascending: true });
 
       if (projectError) {
         console.error(
-          "Error al obtener proyectos personales",
+          "Error al obtener proyectos grupales",
           projectError.message
         );
       } else {
@@ -299,9 +299,9 @@ export default function ProyectoPersonal() {
       .eq("id", projectId)
       .single();
 
-    if (projectError || project?.type !== "personal") {
+    if (projectError || project?.type !== "group") {
       console.error(
-        "Proyecto no encontrado o no es personal",
+        "Proyecto no encontrado o no es grupal",
         projectError?.message
       );
       setTasks([]);
@@ -315,7 +315,7 @@ export default function ProyectoPersonal() {
       .order("created_at", { ascending: true });
 
     if (error) {
-      console.error("Error al obtener tareas personales", error.message);
+      console.error("Error al obtener tareas grupales", error.message);
     } else {
       setTasks(data || []);
     }
@@ -350,7 +350,7 @@ export default function ProyectoPersonal() {
         .select();
 
       if (error) {
-        console.error("Error al agregar tarea personal:", error);
+        console.error("Error al agregar tarea grupal:", error);
       } else {
         setTasks((prevTasks) => [...prevTasks, ...data]);
         setTask("");
@@ -373,13 +373,13 @@ export default function ProyectoPersonal() {
             project_name: newProjectName,
             project_description: newProjectDescription,
             user_id: user.id,
-            type: "personal", // Se guarda como personal
+            type: "group", // Se guarda como grupal
           },
         ])
         .select();
 
       if (error) {
-        console.error("Error al agregar proyecto personal", error.message);
+        console.error("Error al agregar proyecto grupal", error.message);
       } else {
         setProjectData((prevData) => [...prevData, ...data]);
         setNewProjectName("");
@@ -404,7 +404,7 @@ export default function ProyectoPersonal() {
     const { error } = await supabase.from("tasks").delete().eq("id", taskId);
 
     if (error) {
-      console.error("Error al eliminar tarea personal", error.message);
+      console.error("Error al eliminar tarea grupal", error.message);
     } else {
       setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
     }
@@ -417,7 +417,7 @@ export default function ProyectoPersonal() {
       .eq("id", projectId);
 
     if (error) {
-      console.error("Error al eliminar proyecto personal", error.message);
+      console.error("Error al eliminar proyecto grupal", error.message);
     } else {
       setProjectData((prevData) =>
         prevData.filter((project) => project.id !== projectId)
@@ -451,7 +451,7 @@ export default function ProyectoPersonal() {
       .eq("id", taskId);
 
     if (error) {
-      console.error("Error al actualizar tarea personal:", error.message);
+      console.error("Error al actualizar tarea grupal:", error.message);
     } else {
       setTasks((prevTasks) =>
         prevTasks.map((t) =>
@@ -486,7 +486,7 @@ export default function ProyectoPersonal() {
       .eq("id", projectId);
 
     if (error) {
-      console.error("Error al actualizar proyecto personal", error.message);
+      console.error("Error al actualizar proyecto grupal", error.message);
     } else {
       setProjectData((prevData) =>
         prevData.map((p) =>
@@ -558,10 +558,7 @@ export default function ProyectoPersonal() {
       .eq("id", taskIdNumber);
 
     if (error) {
-      console.error(
-        "Error al actualizar el estado de la tarea personal:",
-        error
-      );
+      console.error("Error al actualizar el estado de la tarea grupal:", error);
     } else {
       if (selectedProjectId) fetchTasks(selectedProjectId);
     }
@@ -584,7 +581,7 @@ export default function ProyectoPersonal() {
       <div className="bg-[#DFDED4] p-6 min-h-screen flex relative">
         <div className="w-1/4 p-4 bg-white shadow-lg rounded-lg mr-6">
           <h2 className="text-2xl font-bold text-primary mb-4">
-            Proyectos Personales
+            Proyectos Grupales
           </h2>
           {projectData.length > 0 ? (
             <ul>
@@ -654,14 +651,14 @@ export default function ProyectoPersonal() {
               ))}
             </ul>
           ) : (
-            <p>No tienes proyectos personales</p>
+            <p>No tienes proyectos grupales</p>
           )}
           <div className="mt-6">
             <input
               type="text"
               value={newProjectName}
               onChange={(e) => setNewProjectName(e.target.value)}
-              placeholder="Nombre del Proyecto Personal"
+              placeholder="Nombre del Proyecto Grupal"
               className="p-2 w-full mb-2 border border-primary bg-[#f5f5f5] text-primary focus:outline-none focus:border-primary"
             />
             <input
@@ -675,7 +672,7 @@ export default function ProyectoPersonal() {
               onClick={handleAddProject}
               className="w-full bg-primary text-white py-2 rounded-lg hover:bg-[#DFDED4] transition-all"
             >
-              Añadir Proyecto Personal
+              Añadir Proyecto Grupal
             </button>
           </div>
         </div>
@@ -683,8 +680,8 @@ export default function ProyectoPersonal() {
         <div className="flex-1 p-4 bg-white shadow-lg rounded-lg">
           <h2 className="text-2xl font-bold text-primary mb-4">
             {selectedProjectId
-              ? "Tareas Personales"
-              : "Selecciona un Proyecto Personal"}
+              ? "Tareas Grupales"
+              : "Selecciona un Proyecto Grupal"}
           </h2>
 
           {selectedProjectId ? (
@@ -694,7 +691,7 @@ export default function ProyectoPersonal() {
                   type="text"
                   value={task}
                   onChange={(e) => setTask(e.target.value)}
-                  placeholder="Añadir tarea personal"
+                  placeholder="Añadir tarea grupal"
                   className="p-2 w-full mb-2 border border-primary bg-[#f5f5f5] text-primary focus:outline-none focus:border-primary"
                 />
                 <select
@@ -711,7 +708,7 @@ export default function ProyectoPersonal() {
                   onClick={handleAddTask}
                   className="w-full bg-primary text-white py-2 rounded-lg hover:bg-[#DFDED4] transition-all"
                 >
-                  Añadir Tarea Personal
+                  Añadir Tarea Grupal
                 </button>
               </div>
 
@@ -742,7 +739,7 @@ export default function ProyectoPersonal() {
             </div>
           ) : (
             <p className="text-center text-primary">
-              Selecciona un proyecto personal para ver las tareas.
+              Selecciona un proyecto grupal para ver las tareas.
             </p>
           )}
         </div>
