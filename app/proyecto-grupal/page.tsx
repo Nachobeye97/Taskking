@@ -42,6 +42,16 @@ interface Project {
   type: string;
 }
 
+interface User {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  email: string;
+  created_at: string;
+  updated_at: string;
+}
+
 interface SortableTaskProps {
   task: Task;
   index: number;
@@ -257,6 +267,10 @@ export default function ProyectoGrupal() {
   const [activeColumn, setActiveColumn] = useState<UniqueIdentifier | null>(
     null
   );
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [searchEmail, setSearchEmail] = useState<string>("");
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string>("");
   const router = useRouter();
 
   const sensors = useSensors(
@@ -270,29 +284,124 @@ export default function ProyectoGrupal() {
     const session = await supabase.auth.getSession();
 
     if (session.data?.session?.user) {
+      const userId = session.data.session.user.id;
+
+      // Fetch the user's email
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("email")
+        .eq("id", userId)
+        .single();
+
+      if (userError || !userData) {
+        console.error(
+          "Error al obtener el email del usuario",
+          userError?.message
+        );
+        return;
+      }
+
+      const userEmail = userData.email;
+      console.log(`Fetching projects for user: ${userEmail}`);
+
+      // Fetch projects associated with the user's email via project_users
+      const { data: projectMemberships, error: membershipError } =
+        await supabase
+          .from("project_users")
+          .select("project_id")
+          .eq("user_email", userEmail);
+
+      if (membershipError) {
+        console.error(
+          "Error al obtener membresías de proyectos",
+          membershipError.message
+        );
+        return;
+      }
+
+      const projectIds =
+        projectMemberships?.map((membership) => membership.project_id) || [];
+      console.log(`Project IDs for ${userEmail}:`, projectIds);
+
+      if (projectIds.length === 0) {
+        console.log(`No project memberships found for ${userEmail}`);
+        return;
+      }
+
+      // Fetch project details with detailed logging
       const { data: projects, error: projectError } = await supabase
         .from("projects")
         .select("*")
-        .eq("user_id", session.data.session.user.id)
-        .eq("type", "group")
-        .order("created_at", { ascending: true });
+        .in("id", projectIds);
 
       if (projectError) {
         console.error(
-          "Error al obtener proyectos grupales",
-          projectError.message
+          "Error al obtener proyectos:",
+          projectError.message,
+          projectError.details
         );
       } else {
-        setProjectData(projects || []);
+        console.log(`Raw projects fetched for ${userEmail}:`, projects);
         if (projects && projects.length > 0) {
-          setSelectedProjectId(projects[0].id);
-          fetchTasks(projects[0].id);
+          const filteredProjects = projects.filter((p) => p.type === "group");
+          console.log(`Filtered projects for ${userEmail}:`, filteredProjects);
+          // Only update projectData if we have new data to avoid overwriting
+          if (filteredProjects.length > 0) {
+            setProjectData(filteredProjects);
+            if (!selectedProjectId && filteredProjects.length > 0) {
+              setSelectedProjectId(filteredProjects[0].id);
+              fetchTasks(filteredProjects[0].id);
+            }
+          }
+        } else {
+          console.log(`No projects found in projects table for ${userEmail}`);
         }
       }
     }
   };
 
   const fetchTasks = async (projectId: number) => {
+    // Verify the user is a member of the project
+    const session = await supabase.auth.getSession();
+    if (!session.data?.session?.user) {
+      console.error("No user session found");
+      setTasks([]);
+      return;
+    }
+
+    const userId = session.data.session.user.id;
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("email")
+      .eq("id", userId)
+      .single();
+
+    if (userError || !userData) {
+      console.error(
+        "Error al obtener el email del usuario",
+        userError?.message
+      );
+      setTasks([]);
+      return;
+    }
+
+    const userEmail = userData.email;
+
+    const { data: membership, error: membershipError } = await supabase
+      .from("project_users")
+      .select("project_id")
+      .eq("project_id", projectId)
+      .eq("user_email", userEmail);
+
+    if (membershipError || !membership || membership.length === 0) {
+      console.error(
+        "Usuario no tiene acceso al proyecto o error:",
+        membershipError?.message
+      );
+      setTasks([]);
+      return;
+    }
+
     const { data: project, error: projectError } = await supabase
       .from("projects")
       .select("type")
@@ -315,14 +424,277 @@ export default function ProyectoGrupal() {
       .order("created_at", { ascending: true });
 
     if (error) {
-      console.error("Error al obtener tareas grupales", error.message);
+      console.error(
+        "Error al obtener tareas grupales",
+        error.message,
+        error.details
+      );
     } else {
+      console.log(`Tasks fetched for project ${projectId}:`, data);
       setTasks(data || []);
     }
   };
 
+  const fetchUserByEmail = async (email: string) => {
+    setSearchResults([]); // Clear results initially
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return; // Only proceed if it's a valid email format
+    }
+
+    const session = await supabase.auth.getSession();
+    if (!session.data?.session?.user) return;
+
+    const currentUserId = session.data.session.user.id;
+    const { data: currentUser, error: currentUserError } = await supabase
+      .from("users")
+      .select("email")
+      .eq("id", currentUserId)
+      .single();
+
+    if (currentUserError || !currentUser) {
+      console.error(
+        "Error al obtener el email del usuario actual",
+        currentUserError?.message
+      );
+      return;
+    }
+
+    const currentUserEmail = currentUser.email;
+
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("email", email) // Exact match
+      .neq("email", currentUserEmail); // Exclude the current user
+
+    if (error) {
+      console.error("Error al buscar usuario por email", error.message);
+    } else if (data && data.length > 0) {
+      setSearchResults(data);
+    }
+  };
+
+  const handleAddUserToProject = async (userEmail: string) => {
+    if (!selectedProjectId) return;
+
+    const session = await supabase.auth.getSession();
+    if (session.data?.session?.user) {
+      const currentUserId = session.data.session.user.id;
+
+      // Fetch the current user's email
+      const { data: currentUser, error: currentUserError } = await supabase
+        .from("users")
+        .select("email")
+        .eq("id", currentUserId)
+        .single();
+
+      if (currentUserError || !currentUser) {
+        console.error(
+          "Error al obtener el email del usuario actual",
+          currentUserError?.message
+        );
+        setErrorMessage("Error al obtener el email del usuario actual");
+        return;
+      }
+
+      const currentUserEmail = currentUser.email;
+
+      // Check if the selected user is already in the project
+      const { data: selectedUserMembership, error: selectedUserError } =
+        await supabase
+          .from("project_users")
+          .select("*")
+          .eq("project_id", selectedProjectId)
+          .eq("user_email", userEmail);
+
+      if (selectedUserError) {
+        console.error(
+          "Error al verificar membresía del usuario seleccionado",
+          selectedUserError.message
+        );
+        setErrorMessage(
+          "Error al verificar si el usuario ya está en el proyecto"
+        );
+        return;
+      }
+
+      if (selectedUserMembership && selectedUserMembership.length > 0) {
+        setErrorMessage("El usuario ya está en el proyecto");
+        return;
+      }
+
+      // Check if the current user is already in the project
+      const { data: currentUserMembership, error: currentUserMembershipError } =
+        await supabase
+          .from("project_users")
+          .select("*")
+          .eq("project_id", selectedProjectId)
+          .eq("user_email", currentUserEmail);
+
+      if (currentUserMembershipError) {
+        console.error(
+          "Error al verificar membresía del usuario actual",
+          currentUserMembershipError.message
+        );
+        setErrorMessage(
+          "Error al verificar si el usuario actual está en el proyecto"
+        );
+        return;
+      }
+
+      const recordsToInsert = [];
+
+      // Add the selected user if not already in the project
+      if (!selectedUserMembership || selectedUserMembership.length === 0) {
+        recordsToInsert.push({
+          project_id: selectedProjectId,
+          user_email: userEmail,
+        });
+      }
+
+      // Add the current user if not already in the project
+      if (!currentUserMembership || currentUserMembership.length === 0) {
+        recordsToInsert.push({
+          project_id: selectedProjectId,
+          user_email: currentUserEmail,
+        });
+      }
+
+      if (recordsToInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from("project_users")
+          .insert(recordsToInsert);
+
+        if (insertError) {
+          console.error(
+            "Error al añadir usuario al proyecto",
+            insertError.message
+          );
+          setErrorMessage("Error al añadir usuario al proyecto");
+          return;
+        }
+      }
+
+      // Fetch updated project data for the current user
+      await fetchProjectData();
+      setIsModalOpen(false);
+      setSearchEmail("");
+      setSearchResults([]);
+      setErrorMessage("");
+    }
+  };
+
+  const handleAddProject = async () => {
+    const session = await supabase.auth.getSession();
+
+    if (session.data?.session?.user) {
+      const user = session.data.session.user;
+
+      const { data: newProject, error: projectError } = await supabase
+        .from("projects")
+        .insert([
+          {
+            project_name: newProjectName,
+            project_description: newProjectDescription,
+            user_id: user.id,
+            type: "group",
+          },
+        ])
+        .select()
+        .single();
+
+      if (projectError) {
+        console.error(
+          "Error al agregar proyecto grupal",
+          projectError.message,
+          projectError.details
+        );
+      } else if (newProject) {
+        console.log("New project created:", newProject);
+
+        // Fetch the user's email
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("email")
+          .eq("id", user.id)
+          .single();
+
+        if (userError || !userData) {
+          console.error(
+            "Error al obtener el email del usuario",
+            userError?.message
+          );
+          return;
+        }
+
+        const userEmail = userData.email;
+
+        // Add the user to the project_users table
+        const { error: membershipError } = await supabase
+          .from("project_users")
+          .insert([{ project_id: newProject.id, user_email: userEmail }]);
+
+        if (membershipError) {
+          console.error(
+            "Error al añadir usuario al proyecto",
+            membershipError.message
+          );
+          return;
+        }
+
+        // Immediately add the new project to state to avoid fetch delays
+        setProjectData((prevData) => [...prevData, newProject]);
+        setNewProjectName("");
+        setNewProjectDescription("");
+        await fetchProjectData(); // Refresh to ensure consistency
+      }
+    }
+  };
+
   useEffect(() => {
+    // Initial fetch of project data
     fetchProjectData();
+
+    // Subscribe to real-time changes in the project_users table
+    const subscription = supabase
+      .channel("project_users_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "project_users",
+        },
+        async (payload) => {
+          console.log("Real-time INSERT detected in project_users:", payload);
+          const session = await supabase.auth.getSession();
+          if (session.data?.session?.user) {
+            const userId = session.data.session.user.id;
+            const { data: userData } = await supabase
+              .from("users")
+              .select("email")
+              .eq("id", userId)
+              .single();
+
+            if (userData) {
+              console.log(
+                `Current user email: ${userData.email}, New record email: ${payload.new.user_email}`
+              );
+              if (payload.new.user_email === userData.email) {
+                console.log(`Refreshing project data for ${userData.email}`);
+                await fetchProjectData();
+              }
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on component unmount
+    return () => {
+      console.log("Unsubscribing from project_users_changes");
+      supabase.removeChannel(subscription);
+    };
   }, []);
 
   const handleAddTask = async () => {
@@ -356,35 +728,6 @@ export default function ProyectoGrupal() {
         setTask("");
         setTaskStatus("todo");
         fetchTasks(selectedProjectId);
-      }
-    }
-  };
-
-  const handleAddProject = async () => {
-    const session = await supabase.auth.getSession();
-
-    if (session.data?.session?.user) {
-      const user = session.data.session.user;
-
-      const { data, error } = await supabase
-        .from("projects")
-        .insert([
-          {
-            project_name: newProjectName,
-            project_description: newProjectDescription,
-            user_id: user.id,
-            type: "group", // Se guarda como grupal
-          },
-        ])
-        .select();
-
-      if (error) {
-        console.error("Error al agregar proyecto grupal", error.message);
-      } else {
-        setProjectData((prevData) => [...prevData, ...data]);
-        setNewProjectName("");
-        setNewProjectDescription("");
-        fetchProjectData();
       }
     }
   };
@@ -644,6 +987,14 @@ export default function ProyectoGrupal() {
                             Eliminar Proyecto
                           </button>
                         </li>
+                        <li>
+                          <button
+                            onClick={() => setIsModalOpen(true)}
+                            className="block text-primary mb-2"
+                          >
+                            Añadir Persona
+                          </button>
+                        </li>
                       </ul>
                     </div>
                   </div>
@@ -744,6 +1095,62 @@ export default function ProyectoGrupal() {
           )}
         </div>
       </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-1/3">
+            <h3 className="text-xl font-bold text-primary mb-4">
+              Añadir Persona
+            </h3>
+            <input
+              type="email"
+              value={searchEmail}
+              onChange={(e) => {
+                const email = e.target.value;
+                setSearchEmail(email);
+                fetchUserByEmail(email);
+              }}
+              placeholder="Buscar por correo electrónico"
+              className="p-2 w-full mb-4 border border-primary bg-[#f5f5f5] text-primary focus:outline-none focus:border-primary"
+            />
+            {errorMessage && (
+              <p className="text-center text-red-500 mb-4">{errorMessage}</p>
+            )}
+            {searchResults.length > 0 ? (
+              <ul className="max-h-40 overflow-y-auto mb-4">
+                {searchResults.map((user) => (
+                  <li
+                    key={user.email}
+                    className="p-2 border-b cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleAddUserToProject(user.email)}
+                  >
+                    {user.email}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-center text-gray-500 mb-4">
+                {searchEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(searchEmail)
+                  ? "Ingresa un correo válido"
+                  : searchEmail
+                    ? "Correo no encontrado"
+                    : "Ingresa un correo para buscar"}
+              </p>
+            )}
+            <button
+              onClick={() => {
+                setIsModalOpen(false);
+                setSearchEmail("");
+                setSearchResults([]);
+                setErrorMessage("");
+              }}
+              className="w-full bg-primary text-white py-2 rounded-lg hover:bg-[#DFDED4] transition-all"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
