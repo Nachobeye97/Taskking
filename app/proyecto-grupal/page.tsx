@@ -32,24 +32,20 @@ interface Task {
   task_status: string;
   project_id: number;
   user_id: string;
+  assigned_to?: string;
 }
 
 interface Project {
   id: number;
   project_name: string;
-  project_description: string;
   user_id: string;
   type: string;
+  created_at: string;
 }
 
 interface User {
-  id: string;
-  first_name: string;
-  last_name: string;
-  phone: string;
   email: string;
-  created_at: string;
-  updated_at: string;
+  display_name?: string;
 }
 
 interface SortableTaskProps {
@@ -61,6 +57,7 @@ interface SortableTaskProps {
   handleTaskNameSave: (taskId: number) => void;
   handleTaskEdit: (taskId: number, e: React.MouseEvent) => void;
   handleDeleteTask: (taskId: number) => void;
+  handleAssignTask: (taskId: number) => void;
 }
 
 interface DroppableColumnProps {
@@ -73,6 +70,7 @@ interface DroppableColumnProps {
   handleTaskNameSave: (taskId: number) => void;
   handleTaskEdit: (taskId: number, e: React.MouseEvent) => void;
   handleDeleteTask: (taskId: number) => void;
+  handleAssignTask: (taskId: number) => void;
 }
 
 const DroppableColumn = ({
@@ -85,6 +83,7 @@ const DroppableColumn = ({
   handleTaskNameSave,
   handleTaskEdit,
   handleDeleteTask,
+  handleAssignTask,
 }: DroppableColumnProps) => {
   const { setNodeRef } = useDroppable({ id: status });
 
@@ -126,6 +125,7 @@ const DroppableColumn = ({
                 handleTaskNameSave={handleTaskNameSave}
                 handleTaskEdit={handleTaskEdit}
                 handleDeleteTask={handleDeleteTask}
+                handleAssignTask={handleAssignTask}
               />
             ))}
           </ul>
@@ -158,6 +158,7 @@ const SortableTask = memo(
     handleTaskNameSave,
     handleTaskEdit,
     handleDeleteTask,
+    handleAssignTask,
   }: SortableTaskProps) => {
     const {
       attributes,
@@ -188,6 +189,7 @@ const SortableTask = memo(
           isDragging ? { scale: 1.1, rotate: 2 } : { scale: 1, rotate: 0 }
         }
         transition={{ type: "spring", stiffness: 500, damping: 30 }}
+        title={task.assigned_to || "No asignada"}
       >
         <div className="w-3/4" {...listeners}>
           {selectedTaskId === task.id ? (
@@ -238,6 +240,14 @@ const SortableTask = memo(
                 Eliminar Tarea
               </button>
             </li>
+            <li>
+              <button
+                onClick={() => handleAssignTask(task.id)}
+                className="block text-primary mb-2"
+              >
+                Asignar Tarea
+              </button>
+            </li>
           </ul>
         </div>
       </motion.li>
@@ -253,8 +263,6 @@ export default function ProyectoGrupal() {
   const [taskStatus, setTaskStatus] = useState<string>("todo");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newProjectName, setNewProjectName] = useState<string>("");
-  const [newProjectDescription, setNewProjectDescription] =
-    useState<string>("");
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
     null
   );
@@ -271,6 +279,14 @@ export default function ProyectoGrupal() {
   const [searchEmail, setSearchEmail] = useState<string>("");
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [assigningTaskId, setAssigningTaskId] = useState<number | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [projectMembers, setProjectMembers] = useState<User[]>([]);
+  const [editingMemberEmail, setEditingMemberEmail] = useState<string | null>(
+    null
+  );
+  const [tempEmail, setTempEmail] = useState<string>("");
+  const [tempDisplayName, setTempDisplayName] = useState<string>("");
   const router = useRouter();
 
   const sensors = useSensors(
@@ -286,25 +302,45 @@ export default function ProyectoGrupal() {
     if (session.data?.session?.user) {
       const userId = session.data.session.user.id;
 
-      // Fetch the user's email
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("email")
         .eq("id", userId)
         .single();
 
-      if (userError || !userData) {
+      if (userError) {
         console.error(
-          "Error al obtener el email del usuario",
-          userError?.message
+          "Error al obtener el email del usuario:",
+          userError.message,
+          userError.details
         );
         return;
       }
 
+      if (!userData) {
+        console.error("No user data found for ID:", userId);
+        return;
+      }
+
       const userEmail = userData.email;
+      setCurrentUserEmail(userEmail);
       console.log(`Fetching projects for user: ${userEmail}`);
 
-      // Fetch projects associated with the user's email via project_users
+      const { data: ownedProjects, error: ownedProjectsError } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("type", "group");
+
+      if (ownedProjectsError) {
+        console.error(
+          "Error al obtener proyectos propios:",
+          ownedProjectsError.message,
+          ownedProjectsError.details
+        );
+        return;
+      }
+
       const { data: projectMemberships, error: membershipError } =
         await supabase
           .from("project_users")
@@ -313,26 +349,41 @@ export default function ProyectoGrupal() {
 
       if (membershipError) {
         console.error(
-          "Error al obtener membresías de proyectos",
-          membershipError.message
+          "Error al obtener membresías de proyectos:",
+          membershipError.message,
+          membershipError.details
         );
         return;
       }
 
       const projectIds =
         projectMemberships?.map((membership) => membership.project_id) || [];
-      console.log(`Project IDs for ${userEmail}:`, projectIds);
+      console.log(`Project IDs from memberships for ${userEmail}:`, projectIds);
 
-      if (projectIds.length === 0) {
-        console.log(`No project memberships found for ${userEmail}`);
+      let allProjectIds: number[] = [...projectIds];
+
+      if (ownedProjects) {
+        const ownedProjectIds = ownedProjects.map((p) => p.id);
+        const uniqueProjectIds = new Set([
+          ...allProjectIds,
+          ...ownedProjectIds,
+        ]);
+        allProjectIds = Array.from(uniqueProjectIds);
+      }
+
+      console.log(`All Project IDs for ${userEmail}:`, allProjectIds);
+
+      if (allProjectIds.length === 0) {
+        console.log(`No projects found for ${userEmail}`);
+        setProjectData([]);
         return;
       }
 
-      // Fetch project details with detailed logging
       const { data: projects, error: projectError } = await supabase
         .from("projects")
         .select("*")
-        .in("id", projectIds);
+        .in("id", allProjectIds)
+        .eq("type", "group");
 
       if (projectError) {
         console.error(
@@ -343,25 +394,20 @@ export default function ProyectoGrupal() {
       } else {
         console.log(`Raw projects fetched for ${userEmail}:`, projects);
         if (projects && projects.length > 0) {
-          const filteredProjects = projects.filter((p) => p.type === "group");
-          console.log(`Filtered projects for ${userEmail}:`, filteredProjects);
-          // Only update projectData if we have new data to avoid overwriting
-          if (filteredProjects.length > 0) {
-            setProjectData(filteredProjects);
-            if (!selectedProjectId && filteredProjects.length > 0) {
-              setSelectedProjectId(filteredProjects[0].id);
-              fetchTasks(filteredProjects[0].id);
-            }
+          setProjectData(projects);
+          if (!selectedProjectId && projects.length > 0) {
+            setSelectedProjectId(projects[0].id);
+            fetchTasks(projects[0].id);
+            fetchProjectMembers(projects[0].id);
           }
         } else {
-          console.log(`No projects found in projects table for ${userEmail}`);
+          setProjectData([]);
         }
       }
     }
   };
 
   const fetchTasks = async (projectId: number) => {
-    // Verify the user is a member of the project
     const session = await supabase.auth.getSession();
     if (!session.data?.session?.user) {
       console.error("No user session found");
@@ -376,11 +422,18 @@ export default function ProyectoGrupal() {
       .eq("id", userId)
       .single();
 
-    if (userError || !userData) {
+    if (userError) {
       console.error(
-        "Error al obtener el email del usuario",
-        userError?.message
+        "Error al obtener el email del usuario:",
+        userError.message,
+        userError.details
       );
+      setTasks([]);
+      return;
+    }
+
+    if (!userData) {
+      console.error("No user data found for ID:", userId);
       setTasks([]);
       return;
     }
@@ -393,10 +446,21 @@ export default function ProyectoGrupal() {
       .eq("project_id", projectId)
       .eq("user_email", userEmail);
 
-    if (membershipError || !membership || membership.length === 0) {
+    const { data: ownedProject, error: ownedProjectError } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("id", projectId)
+      .eq("user_id", userId);
+
+    if (
+      (membershipError || !membership || membership.length === 0) &&
+      (ownedProjectError || !ownedProject || ownedProject.length === 0)
+    ) {
       console.error(
         "Usuario no tiene acceso al proyecto o error:",
-        membershipError?.message
+        membershipError?.message,
+        membershipError?.details,
+        ownedProjectError?.message
       );
       setTasks([]);
       return;
@@ -410,8 +474,9 @@ export default function ProyectoGrupal() {
 
     if (projectError || project?.type !== "group") {
       console.error(
-        "Proyecto no encontrado o no es grupal",
-        projectError?.message
+        "Proyecto no encontrado o no es grupal:",
+        projectError?.message,
+        projectError?.details
       );
       setTasks([]);
       return;
@@ -425,20 +490,25 @@ export default function ProyectoGrupal() {
 
     if (error) {
       console.error(
-        "Error al obtener tareas grupales",
+        "Error al obtener tareas grupales:",
         error.message,
         error.details
       );
     } else {
       console.log(`Tasks fetched for project ${projectId}:`, data);
-      setTasks(data || []);
+      setTasks(
+        data.map((task) => ({
+          ...task,
+          assigned_to: task.assigned_to || undefined,
+        })) || []
+      );
     }
   };
 
   const fetchUserByEmail = async (email: string) => {
-    setSearchResults([]); // Clear results initially
+    setSearchResults([]);
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return; // Only proceed if it's a valid email format
+      return;
     }
 
     const session = await supabase.auth.getSession();
@@ -453,8 +523,9 @@ export default function ProyectoGrupal() {
 
     if (currentUserError || !currentUser) {
       console.error(
-        "Error al obtener el email del usuario actual",
-        currentUserError?.message
+        "Error al obtener el email del usuario actual:",
+        currentUserError?.message,
+        currentUserError?.details
       );
       return;
     }
@@ -463,208 +534,413 @@ export default function ProyectoGrupal() {
 
     const { data, error } = await supabase
       .from("users")
-      .select("*")
-      .eq("email", email) // Exact match
-      .neq("email", currentUserEmail); // Exclude the current user
+      .select("email")
+      .eq("email", email)
+      .neq("email", currentUserEmail);
 
     if (error) {
-      console.error("Error al buscar usuario por email", error.message);
+      console.error(
+        "Error al buscar usuario por email:",
+        error.message,
+        error.details
+      );
     } else if (data && data.length > 0) {
       setSearchResults(data);
     }
   };
 
-  const handleAddUserToProject = async (userEmail: string) => {
-    if (!selectedProjectId) return;
+  const fetchProjectUsers = async (projectId: number) => {
+    setSearchResults([]);
+    if (!projectId) {
+      console.log("No project ID provided for fetchProjectUsers");
+      return;
+    }
 
     const session = await supabase.auth.getSession();
-    if (session.data?.session?.user) {
-      const currentUserId = session.data.session.user.id;
-
-      // Fetch the current user's email
-      const { data: currentUser, error: currentUserError } = await supabase
-        .from("users")
-        .select("email")
-        .eq("id", currentUserId)
-        .single();
-
-      if (currentUserError || !currentUser) {
-        console.error(
-          "Error al obtener el email del usuario actual",
-          currentUserError?.message
-        );
-        setErrorMessage("Error al obtener el email del usuario actual");
-        return;
-      }
-
-      const currentUserEmail = currentUser.email;
-
-      // Check if the selected user is already in the project
-      const { data: selectedUserMembership, error: selectedUserError } =
-        await supabase
-          .from("project_users")
-          .select("*")
-          .eq("project_id", selectedProjectId)
-          .eq("user_email", userEmail);
-
-      if (selectedUserError) {
-        console.error(
-          "Error al verificar membresía del usuario seleccionado",
-          selectedUserError.message
-        );
-        setErrorMessage(
-          "Error al verificar si el usuario ya está en el proyecto"
-        );
-        return;
-      }
-
-      if (selectedUserMembership && selectedUserMembership.length > 0) {
-        setErrorMessage("El usuario ya está en el proyecto");
-        return;
-      }
-
-      // Check if the current user is already in the project
-      const { data: currentUserMembership, error: currentUserMembershipError } =
-        await supabase
-          .from("project_users")
-          .select("*")
-          .eq("project_id", selectedProjectId)
-          .eq("user_email", currentUserEmail);
-
-      if (currentUserMembershipError) {
-        console.error(
-          "Error al verificar membresía del usuario actual",
-          currentUserMembershipError.message
-        );
-        setErrorMessage(
-          "Error al verificar si el usuario actual está en el proyecto"
-        );
-        return;
-      }
-
-      const recordsToInsert = [];
-
-      // Add the selected user if not already in the project
-      if (!selectedUserMembership || selectedUserMembership.length === 0) {
-        recordsToInsert.push({
-          project_id: selectedProjectId,
-          user_email: userEmail,
-        });
-      }
-
-      // Add the current user if not already in the project
-      if (!currentUserMembership || currentUserMembership.length === 0) {
-        recordsToInsert.push({
-          project_id: selectedProjectId,
-          user_email: currentUserEmail,
-        });
-      }
-
-      if (recordsToInsert.length > 0) {
-        const { error: insertError } = await supabase
-          .from("project_users")
-          .insert(recordsToInsert);
-
-        if (insertError) {
-          console.error(
-            "Error al añadir usuario al proyecto",
-            insertError.message
-          );
-          setErrorMessage("Error al añadir usuario al proyecto");
-          return;
-        }
-      }
-
-      // Fetch updated project data for the current user
-      await fetchProjectData();
-      setIsModalOpen(false);
-      setSearchEmail("");
-      setSearchResults([]);
-      setErrorMessage("");
+    if (!session.data?.session?.user) {
+      console.log("No user session found in fetchProjectUsers");
+      return;
     }
+
+    const currentUserId = session.data.session.user.id;
+    const { data: currentUser, error: currentUserError } = await supabase
+      .from("users")
+      .select("email")
+      .eq("id", currentUserId)
+      .single();
+
+    if (currentUserError || !currentUser) {
+      console.error(
+        "Error al obtener el email del usuario actual:",
+        currentUserError?.message,
+        currentUserError?.details
+      );
+      return;
+    }
+
+    const currentUserEmail = currentUser.email;
+    setCurrentUserEmail(currentUserEmail);
+    console.log(
+      `Step 1: Fetching users for project ID ${projectId}, current user: ${currentUserEmail}`
+    );
+
+    const { data: projectUsers, error: projectUsersError } = await supabase
+      .from("project_users")
+      .select("user_email, display_name")
+      .eq("project_id", projectId);
+
+    if (projectUsersError) {
+      console.error(
+        "Step 2: Error al obtener usuarios del proyecto:",
+        projectUsersError.message,
+        projectUsersError.details
+      );
+      return;
+    }
+
+    console.log(
+      `Step 2: Project users for project ID ${projectId}:`,
+      projectUsers
+    );
+
+    const userList = projectUsers.map((pu) => ({
+      email: pu.user_email,
+      display_name: pu.display_name || undefined,
+    }));
+    console.log(
+      `Step 5: Using emails and display_names for project ID ${projectId}:`,
+      userList
+    );
+    setSearchResults(userList);
+  };
+
+  const fetchProjectMembers = async (projectId: number) => {
+    setProjectMembers([]);
+    if (!projectId) {
+      console.log("No project ID provided for fetchProjectMembers");
+      return;
+    }
+
+    const { data: members, error } = await supabase
+      .from("project_users")
+      .select("user_email, display_name")
+      .eq("project_id", projectId);
+
+    if (error) {
+      console.error(
+        "Error al obtener los miembros del proyecto:",
+        error.message,
+        error.details
+      );
+      return;
+    }
+
+    const memberList = members.map((member) => ({
+      email: member.user_email,
+      display_name: member.display_name || undefined,
+    }));
+    console.log(`Members for project ID ${projectId}:`, memberList);
+    setProjectMembers(memberList);
+  };
+
+  const handleAddUserToProject = async (userEmail: string) => {
+    if (!selectedProjectId) {
+      setErrorMessage("No se ha seleccionado un proyecto");
+      return;
+    }
+
+    const session = await supabase.auth.getSession();
+    if (!session.data?.session?.user) {
+      setErrorMessage("No hay sesión de usuario activa");
+      return;
+    }
+
+    const currentUserId = session.data.session.user.id;
+
+    const { data: currentUser, error: currentUserError } = await supabase
+      .from("users")
+      .select("email")
+      .eq("id", currentUserId)
+      .single();
+
+    if (currentUserError || !currentUser) {
+      console.error(
+        "Error al obtener el email del usuario actual:",
+        currentUserError?.message,
+        currentUserError?.details
+      );
+      setErrorMessage("Error al obtener el email del usuario actual");
+      return;
+    }
+
+    const currentUserEmail = currentUser.email;
+
+    const { data: selectedUserMembership, error: selectedUserError } =
+      await supabase
+        .from("project_users")
+        .select("*")
+        .eq("project_id", selectedProjectId)
+        .eq("user_email", userEmail);
+
+    if (selectedUserError) {
+      console.error(
+        "Error al verificar membresía del usuario seleccionado:",
+        selectedUserError.message,
+        selectedUserError?.details
+      );
+      setErrorMessage(
+        "Error al verificar si el usuario ya está en el proyecto"
+      );
+      return;
+    }
+
+    if (selectedUserMembership && selectedUserMembership.length > 0) {
+      setErrorMessage("El usuario ya está en el proyecto");
+      return;
+    }
+
+    const recordsToInsert = [];
+    if (!selectedUserMembership || selectedUserMembership.length === 0) {
+      recordsToInsert.push({
+        project_id: selectedProjectId,
+        user_email: userEmail,
+      });
+    }
+
+    if (recordsToInsert.length > 0) {
+      console.log(
+        `Intentando insertar en project_users: ${JSON.stringify(recordsToInsert)}`
+      );
+      const { error: insertError } = await supabase
+        .from("project_users")
+        .insert(recordsToInsert);
+
+      if (insertError) {
+        console.error(
+          "Error al añadir usuario al proyecto:",
+          insertError.message,
+          insertError.details
+        );
+        setErrorMessage(
+          `Error al añadir usuario al proyecto: ${insertError.message}`
+        );
+        return;
+      }
+    }
+
+    console.log(
+      `Usuario ${userEmail} añadido al proyecto ${selectedProjectId} con éxito`
+    );
+    await fetchProjectData();
+    await fetchProjectMembers(selectedProjectId);
+    setIsModalOpen(false);
+    setSearchEmail("");
+    setSearchResults([]);
+    setErrorMessage("");
   };
 
   const handleAddProject = async () => {
+    if (!newProjectName.trim()) {
+      setErrorMessage("El nombre del proyecto no puede estar vacío");
+      return;
+    }
+
     const session = await supabase.auth.getSession();
 
-    if (session.data?.session?.user) {
-      const user = session.data.session.user;
+    if (!session.data?.session?.user) {
+      setErrorMessage("No hay sesión de usuario activa");
+      return;
+    }
 
-      const { data: newProject, error: projectError } = await supabase
-        .from("projects")
-        .insert([
-          {
-            project_name: newProjectName,
-            project_description: newProjectDescription,
-            user_id: user.id,
-            type: "group",
-          },
-        ])
-        .select()
-        .single();
+    const user = session.data.session.user;
 
-      if (projectError) {
-        console.error(
-          "Error al agregar proyecto grupal",
-          projectError.message,
-          projectError.details
-        );
-      } else if (newProject) {
-        console.log("New project created:", newProject);
+    const projectData = {
+      project_name: newProjectName,
+      user_id: user.id,
+      type: "group",
+      created_at: new Date().toISOString(),
+    };
 
-        // Fetch the user's email
-        const { data: userData, error: userError } = await supabase
-          .from("users")
-          .select("email")
-          .eq("id", user.id)
-          .single();
+    console.log("Intentando crear proyecto con datos:", projectData);
 
-        if (userError || !userData) {
-          console.error(
-            "Error al obtener el email del usuario",
-            userError?.message
-          );
-          return;
-        }
+    const { data: newProject, error: projectError } = await supabase
+      .from("projects")
+      .insert([projectData])
+      .select()
+      .single();
 
-        const userEmail = userData.email;
+    if (projectError) {
+      console.error(
+        "Error al agregar proyecto grupal:",
+        projectError.message,
+        projectError.details
+      );
+      setErrorMessage(`Error al crear proyecto: ${projectError.message}`);
+      return;
+    }
 
-        // Add the user to the project_users table
-        const { error: membershipError } = await supabase
+    console.log("Proyecto creado con éxito:", newProject);
+
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("email")
+      .eq("id", user.id)
+      .single();
+
+    if (userError || !userData) {
+      console.error(
+        "Error al obtener el email del usuario:",
+        userError?.message,
+        userError?.details
+      );
+      setErrorMessage("Error al obtener el email del usuario");
+      await supabase.from("projects").delete().eq("id", newProject.id);
+      console.log(
+        `Proyecto ${newProject.id} eliminado debido a error al obtener email`
+      );
+      return;
+    }
+
+    const userEmail = userData.email;
+
+    const membershipData = { project_id: newProject.id, user_email: userEmail };
+    console.log(
+      "Intentando añadir creador al proyecto con datos:",
+      membershipData
+    );
+
+    const { error: membershipError } = await supabase
+      .from("project_users")
+      .insert([membershipData]);
+
+    if (membershipError) {
+      console.error(
+        "Error al añadir usuario al proyecto:",
+        membershipError.message,
+        membershipError.details
+      );
+      setErrorMessage(
+        `Error al añadir usuario al proyecto: ${membershipError.message}`
+      );
+      await supabase.from("projects").delete().eq("id", newProject.id);
+      console.log(
+        `Proyecto ${newProject.id} eliminado debido a error en membresía`
+      );
+      return;
+    }
+
+    console.log("Creador añadido al proyecto con éxito");
+    setNewProjectName("");
+    setErrorMessage("");
+    await fetchProjectData();
+  };
+
+  const handleEditMember = (member: User) => {
+    setEditingMemberEmail(member.email);
+    setTempEmail(member.email);
+    setTempDisplayName(member.display_name || "");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMemberEmail(null);
+    setTempEmail("");
+    setTempDisplayName("");
+  };
+
+  const handleSaveMember = async () => {
+    if (!selectedProjectId || !editingMemberEmail) return;
+
+    if (!tempEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(tempEmail)) {
+      setErrorMessage("Por favor, ingresa un correo electrónico válido");
+      return;
+    }
+
+    // Check for unique display_name
+    if (tempDisplayName) {
+      const { data: existingDisplayName, error: displayNameError } =
+        await supabase
           .from("project_users")
-          .insert([{ project_id: newProject.id, user_email: userEmail }]);
+          .select("user_email")
+          .eq("project_id", selectedProjectId)
+          .eq("display_name", tempDisplayName)
+          .neq("user_email", editingMemberEmail);
 
-        if (membershipError) {
-          console.error(
-            "Error al añadir usuario al proyecto",
-            membershipError.message
-          );
-          return;
-        }
+      if (displayNameError) {
+        console.error(
+          "Error al verificar apodo existente:",
+          displayNameError.message,
+          displayNameError.details
+        );
+        setErrorMessage("Error al verificar el apodo");
+        return;
+      }
 
-        // Immediately add the new project to state to avoid fetch delays
-        setProjectData((prevData) => [...prevData, newProject]);
-        setNewProjectName("");
-        setNewProjectDescription("");
-        await fetchProjectData(); // Refresh to ensure consistency
+      if (existingDisplayName && existingDisplayName.length > 0) {
+        setErrorMessage("Este apodo ya está en uso en el proyecto");
+        return;
       }
     }
+
+    const { data: existingMember, error: existingError } = await supabase
+      .from("project_users")
+      .select("user_email")
+      .eq("project_id", selectedProjectId)
+      .eq("user_email", tempEmail)
+      .neq("user_email", editingMemberEmail);
+
+    if (existingError) {
+      console.error(
+        "Error al verificar email existente:",
+        existingError.message,
+        existingError.details
+      );
+      setErrorMessage("Error al verificar el correo electrónico");
+      return;
+    }
+
+    if (existingMember && existingMember.length > 0) {
+      setErrorMessage("Este correo ya está en uso en el proyecto");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("project_users")
+      .update({
+        user_email: tempEmail,
+        display_name: tempDisplayName || null,
+      })
+      .eq("project_id", selectedProjectId)
+      .eq("user_email", editingMemberEmail);
+
+    if (error) {
+      console.error(
+        "Error al actualizar miembro:",
+        error.message,
+        error.details
+      );
+      setErrorMessage("Error al guardar los cambios");
+      return;
+    }
+
+    if (editingMemberEmail === currentUserEmail) {
+      setCurrentUserEmail(tempEmail);
+    }
+
+    setEditingMemberEmail(null);
+    setTempEmail("");
+    setTempDisplayName("");
+    setErrorMessage("");
+    await fetchProjectMembers(selectedProjectId);
   };
 
   useEffect(() => {
-    // Initial fetch of project data
     fetchProjectData();
 
-    // Subscribe to real-time changes in the project_users table
     const subscription = supabase
       .channel("project_users_changes")
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "project_users",
-        },
+        { event: "INSERT", schema: "public", table: "project_users" },
         async (payload) => {
           console.log("Real-time INSERT detected in project_users:", payload);
           const session = await supabase.auth.getSession();
@@ -676,21 +952,31 @@ export default function ProyectoGrupal() {
               .eq("id", userId)
               .single();
 
-            if (userData) {
-              console.log(
-                `Current user email: ${userData.email}, New record email: ${payload.new.user_email}`
-              );
-              if (payload.new.user_email === userData.email) {
-                console.log(`Refreshing project data for ${userData.email}`);
-                await fetchProjectData();
+            if (userData && payload.new.user_email === userData.email) {
+              console.log(`Refreshing project data for ${userData.email}`);
+              await fetchProjectData();
+              if (selectedProjectId) {
+                await fetchProjectMembers(selectedProjectId);
               }
             }
           }
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "project_users" },
+        async (payload) => {
+          console.log("Real-time UPDATE detected in project_users:", payload);
+          if (
+            selectedProjectId &&
+            payload.new.project_id === selectedProjectId
+          ) {
+            await fetchProjectMembers(selectedProjectId);
+          }
+        }
+      )
       .subscribe();
 
-    // Cleanup subscription on component unmount
     return () => {
       console.log("Unsubscribing from project_users_changes");
       supabase.removeChannel(subscription);
@@ -722,7 +1008,11 @@ export default function ProyectoGrupal() {
         .select();
 
       if (error) {
-        console.error("Error al agregar tarea grupal:", error);
+        console.error(
+          "Error al agregar tarea grupal:",
+          error.message,
+          error.details
+        );
       } else {
         setTasks((prevTasks) => [...prevTasks, ...data]);
         setTask("");
@@ -740,14 +1030,20 @@ export default function ProyectoGrupal() {
     setEditingTaskName("");
     setSelectedProjectIdForEdit(null);
     setEditingProjectName("");
+    setEditingMemberEmail(null);
     fetchTasks(projectId);
+    fetchProjectMembers(projectId);
   };
 
   const handleDeleteTask = async (taskId: number) => {
     const { error } = await supabase.from("tasks").delete().eq("id", taskId);
 
     if (error) {
-      console.error("Error al eliminar tarea grupal", error.message);
+      console.error(
+        "Error al eliminar tarea grupal:",
+        error.message,
+        error.details
+      );
     } else {
       setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
     }
@@ -760,7 +1056,11 @@ export default function ProyectoGrupal() {
       .eq("id", projectId);
 
     if (error) {
-      console.error("Error al eliminar proyecto grupal", error.message);
+      console.error(
+        "Error al eliminar proyecto grupal:",
+        error.message,
+        error.details
+      );
     } else {
       setProjectData((prevData) =>
         prevData.filter((project) => project.id !== projectId)
@@ -768,6 +1068,8 @@ export default function ProyectoGrupal() {
       if (selectedProjectId === projectId) {
         setSelectedProjectId(null);
         setTasks([]);
+        setProjectMembers([]);
+        setEditingMemberEmail(null);
       }
     }
   };
@@ -794,7 +1096,11 @@ export default function ProyectoGrupal() {
       .eq("id", taskId);
 
     if (error) {
-      console.error("Error al actualizar tarea grupal:", error.message);
+      console.error(
+        "Error al actualizar tarea grupal:",
+        error.message,
+        error.details
+      );
     } else {
       setTasks((prevTasks) =>
         prevTasks.map((t) =>
@@ -829,7 +1135,11 @@ export default function ProyectoGrupal() {
       .eq("id", projectId);
 
     if (error) {
-      console.error("Error al actualizar proyecto grupal", error.message);
+      console.error(
+        "Error al actualizar proyecto grupal:",
+        error.message,
+        error.details
+      );
     } else {
       setProjectData((prevData) =>
         prevData.map((p) =>
@@ -901,7 +1211,11 @@ export default function ProyectoGrupal() {
       .eq("id", taskIdNumber);
 
     if (error) {
-      console.error("Error al actualizar el estado de la tarea grupal:", error);
+      console.error(
+        "Error al actualizar el estado de la tarea grupal:",
+        error.message,
+        error.details
+      );
     } else {
       if (selectedProjectId) fetchTasks(selectedProjectId);
     }
@@ -911,6 +1225,40 @@ export default function ProyectoGrupal() {
     return tasks.filter(
       (task: Task) => (task.task_status || "todo") === status
     );
+  };
+
+  const handleAssignTask = (taskId: number) => {
+    setAssigningTaskId(taskId);
+    setIsModalOpen(true);
+    if (selectedProjectId) {
+      fetchProjectUsers(selectedProjectId);
+    }
+  };
+
+  const handleAssignUserToTask = async (userEmail: string) => {
+    if (!assigningTaskId || !selectedProjectId) return;
+
+    const { error } = await supabase
+      .from("tasks")
+      .update({ assigned_to: userEmail })
+      .eq("id", assigningTaskId);
+
+    if (error) {
+      console.error("Error al asignar tarea:", error.message, error.details);
+      setErrorMessage("Error al asignar la tarea");
+    } else {
+      setTasks((prevTasks) =>
+        prevTasks.map((t) =>
+          t.id === assigningTaskId ? { ...t, assigned_to: userEmail } : t
+        )
+      );
+      setAssigningTaskId(null);
+      setIsModalOpen(false);
+      setSearchEmail("");
+      setSearchResults([]);
+      setErrorMessage("");
+      await fetchTasks(selectedProjectId);
+    }
   };
 
   return (
@@ -1012,19 +1360,15 @@ export default function ProyectoGrupal() {
               placeholder="Nombre del Proyecto Grupal"
               className="p-2 w-full mb-2 border border-primary bg-[#f5f5f5] text-primary focus:outline-none focus:border-primary"
             />
-            <input
-              type="text"
-              value={newProjectDescription}
-              onChange={(e) => setNewProjectDescription(e.target.value)}
-              placeholder="Descripción"
-              className="p-2 w-full mb-2 border border-primary bg-[#f5f5f5] text-primary focus:outline-none focus:border-primary"
-            />
             <button
               onClick={handleAddProject}
               className="w-full bg-primary text-white py-2 rounded-lg hover:bg-[#DFDED4] transition-all"
             >
               Añadir Proyecto Grupal
             </button>
+            {errorMessage && (
+              <p className="text-red-500 mt-2">{errorMessage}</p>
+            )}
           </div>
         </div>
 
@@ -1037,6 +1381,98 @@ export default function ProyectoGrupal() {
 
           {selectedProjectId ? (
             <div>
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-primary mb-2">
+                  Miembros del Proyecto
+                </h3>
+                {projectMembers.length > 0 ? (
+                  <div className="flex flex-wrap gap-3">
+                    {projectMembers.map((member) => (
+                      <motion.div
+                        key={member.email}
+                        className="flex items-center bg-[#f5f5f5] rounded-full px-4 py-2 shadow-sm transition-all duration-300"
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        {editingMemberEmail === member.email ? (
+                          <div className="flex flex-col gap-2">
+                            <input
+                              type="email"
+                              value={tempEmail}
+                              onChange={(e) => setTempEmail(e.target.value)}
+                              placeholder="Correo electrónico"
+                              className="p-1 border border-primary bg-[#f5f5f5] text-primary focus:outline-none focus:border-primary rounded"
+                            />
+                            <input
+                              type="text"
+                              value={tempDisplayName}
+                              onChange={(e) =>
+                                setTempDisplayName(e.target.value)
+                              }
+                              placeholder="Apodo (opcional)"
+                              className="p-1 border border-primary bg-[#f5f5f5] text-primary focus:outline-none focus:border-primary rounded"
+                            />
+                            <div className="flex gap-2 mt-1">
+                              <button
+                                onClick={handleSaveMember}
+                                className="bg-primary text-white px-3 py-1 rounded hover:bg-[#DFDED4] transition-all"
+                              >
+                                Guardar
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                className="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600 transition-all"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center">
+                              <span className="text-primary text-sm font-medium">
+                                {member.display_name || member.email}
+                              </span>
+                              {member.email === currentUserEmail && (
+                                <span className="ml-2 text-xs bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full">
+                                  (Tú)
+                                </span>
+                              )}
+                            </div>
+                            {member.email === currentUserEmail && (
+                              <button
+                                onClick={() => handleEditMember(member)}
+                                className="ml-2 text-primary hover:text-primary/70 transition-all"
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  className="h-5 w-5"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                  />
+                                </svg>
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500">
+                    No hay miembros en este proyecto.
+                  </p>
+                )}
+              </div>
+
               <div className="mb-4">
                 <input
                   type="text"
@@ -1083,6 +1519,7 @@ export default function ProyectoGrupal() {
                       handleTaskNameSave={handleTaskNameSave}
                       handleTaskEdit={handleTaskEdit}
                       handleDeleteTask={handleDeleteTask}
+                      handleAssignTask={handleAssignTask}
                     />
                   ))}
                 </div>
@@ -1100,42 +1537,76 @@ export default function ProyectoGrupal() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-1/3">
             <h3 className="text-xl font-bold text-primary mb-4">
-              Añadir Persona
+              {assigningTaskId ? "Asignar Tarea" : "Añadir Persona"}
             </h3>
-            <input
-              type="email"
-              value={searchEmail}
-              onChange={(e) => {
-                const email = e.target.value;
-                setSearchEmail(email);
-                fetchUserByEmail(email);
-              }}
-              placeholder="Buscar por correo electrónico"
-              className="p-2 w-full mb-4 border border-primary bg-[#f5f5f5] text-primary focus:outline-none focus:border-primary"
-            />
-            {errorMessage && (
-              <p className="text-center text-red-500 mb-4">{errorMessage}</p>
-            )}
-            {searchResults.length > 0 ? (
-              <ul className="max-h-40 overflow-y-auto mb-4">
-                {searchResults.map((user) => (
-                  <li
-                    key={user.email}
-                    className="p-2 border-b cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleAddUserToProject(user.email)}
-                  >
-                    {user.email}
-                  </li>
-                ))}
-              </ul>
+            {assigningTaskId ? (
+              <>
+                <p className="text-gray-600 mb-4">
+                  Selecciona un usuario del proyecto para asignar la tarea:
+                </p>
+                {searchResults.length > 0 ? (
+                  <ul className="max-h-40 overflow-y-auto mb-4">
+                    {searchResults.map((user) => (
+                      <li
+                        key={user.email}
+                        className={`p-2 border-b cursor-pointer hover:bg-gray-100 ${
+                          user.email === currentUserEmail ? "bg-yellow-200" : ""
+                        }`}
+                        onClick={() => handleAssignUserToTask(user.email)}
+                      >
+                        {user.display_name || user.email}
+                        {user.email === currentUserEmail && " (Tú)"}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-center text-gray-500 mb-4">
+                    No hay usuarios en este proyecto para asignar. Añade más
+                    personas al proyecto.
+                  </p>
+                )}
+              </>
             ) : (
-              <p className="text-center text-gray-500 mb-4">
-                {searchEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(searchEmail)
-                  ? "Ingresa un correo válido"
-                  : searchEmail
-                    ? "Correo no encontrado"
-                    : "Ingresa un correo para buscar"}
-              </p>
+              <>
+                <input
+                  type="email"
+                  value={searchEmail}
+                  onChange={(e) => {
+                    const email = e.target.value;
+                    setSearchEmail(email);
+                    fetchUserByEmail(email);
+                  }}
+                  placeholder="Buscar por correo electrónico"
+                  className="p-2 w-full mb-4 border border-primary bg-[#f5f5f5] text-primary focus:outline-none focus:border-primary"
+                />
+                {errorMessage && (
+                  <p className="text-center text-red-500 mb-4">
+                    {errorMessage}
+                  </p>
+                )}
+                {searchResults.length > 0 ? (
+                  <ul className="max-h-40 overflow-y-auto mb-4">
+                    {searchResults.map((user) => (
+                      <li
+                        key={user.email}
+                        className="p-2 border-b cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleAddUserToProject(user.email)}
+                      >
+                        {user.email}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-center text-gray-500 mb-4">
+                    {searchEmail &&
+                    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(searchEmail)
+                      ? "Ingresa un correo válido"
+                      : searchEmail
+                        ? "Correo no encontrado"
+                        : "Ingresa un correo para buscar"}
+                  </p>
+                )}
+              </>
             )}
             <button
               onClick={() => {
@@ -1143,6 +1614,7 @@ export default function ProyectoGrupal() {
                 setSearchEmail("");
                 setSearchResults([]);
                 setErrorMessage("");
+                setAssigningTaskId(null);
               }}
               className="w-full bg-primary text-white py-2 rounded-lg hover:bg-[#DFDED4] transition-all"
             >
