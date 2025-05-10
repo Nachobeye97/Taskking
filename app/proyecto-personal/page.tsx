@@ -16,6 +16,7 @@ import {
   DragEndEvent,
   UniqueIdentifier,
   useDroppable,
+  DragOverlay,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -37,7 +38,6 @@ interface Task {
 interface Project {
   id: number;
   project_name: string;
-  project_description: string;
   user_id: string;
   type: string;
 }
@@ -162,6 +162,7 @@ const SortableTask = memo(
       transform: CSS.Transform.toString(transform),
       transition: isDragging ? "none" : "all 0.3s ease-out",
       zIndex: isDragging ? 50 : "auto",
+      opacity: isDragging ? 0.3 : 1,
     };
 
     return (
@@ -169,11 +170,7 @@ const SortableTask = memo(
         ref={setNodeRef}
         style={style}
         {...attributes}
-        className={`p-1 mb-2 bg-white rounded-lg flex justify-between items-center ${
-          isDragging
-            ? "shadow-2xl border-4 border-primary pulse-border opacity-70 bg-primary/10"
-            : "shadow-sm"
-        }`}
+        className={`p-1 mb-2 bg-white rounded-lg flex justify-between items-center shadow-sm`}
         animate={
           isDragging ? { scale: 1.1, rotate: 2 } : { scale: 1, rotate: 0 }
         }
@@ -243,8 +240,6 @@ export default function ProyectoPersonal() {
   const [taskStatus, setTaskStatus] = useState<string>("todo");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newProjectName, setNewProjectName] = useState<string>("");
-  const [newProjectDescription, setNewProjectDescription] =
-    useState<string>("");
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
     null
   );
@@ -257,6 +252,7 @@ export default function ProyectoPersonal() {
   const [activeColumn, setActiveColumn] = useState<UniqueIdentifier | null>(
     null
   );
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
   const router = useRouter();
 
   const sensors = useSensors(
@@ -371,9 +367,8 @@ export default function ProyectoPersonal() {
         .insert([
           {
             project_name: newProjectName,
-            project_description: newProjectDescription,
             user_id: user.id,
-            type: "personal", // Se guarda como personal
+            type: "personal",
           },
         ])
         .select();
@@ -383,7 +378,6 @@ export default function ProyectoPersonal() {
       } else {
         setProjectData((prevData) => [...prevData, ...data]);
         setNewProjectName("");
-        setNewProjectDescription("");
         fetchProjectData();
       }
     }
@@ -500,7 +494,12 @@ export default function ProyectoPersonal() {
   };
 
   const handleDragStart = (event: DragStartEvent) => {
-    console.log("Drag started:", event.active.id);
+    const taskId = event.active.id;
+    const task = tasks.find((t) => t.id === Number(taskId));
+    if (task) {
+      setActiveTask(task);
+    }
+    console.log("Drag started:", taskId);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
@@ -527,6 +526,7 @@ export default function ProyectoPersonal() {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveColumn(null);
+    setActiveTask(null);
 
     if (!over) return;
 
@@ -536,22 +536,27 @@ export default function ProyectoPersonal() {
     const destinationColumn: UniqueIdentifier = over.id;
 
     const validStatuses = ["todo", "inProgress", "done", "paused"];
-    let finalDestinationColumn: string;
 
-    if (validStatuses.includes(destinationColumn.toString())) {
-      finalDestinationColumn = destinationColumn.toString();
-    } else {
-      const task = tasks.find((t) => t.id === Number(destinationColumn));
-      if (task) {
-        finalDestinationColumn = task.task_status;
-      } else {
-        return;
-      }
+    if (!validStatuses.includes(destinationColumn.toString())) {
+      return;
     }
+
+    const finalDestinationColumn: string = destinationColumn.toString();
 
     if (sourceColumn === finalDestinationColumn) return;
 
     const taskIdNumber = Number(taskId);
+
+    // Optimistically update the local tasks state
+    setTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === taskIdNumber
+          ? { ...task, task_status: finalDestinationColumn }
+          : task
+      )
+    );
+
+    // Update the task status in the database
     const { error } = await supabase
       .from("tasks")
       .update({ task_status: finalDestinationColumn })
@@ -562,9 +567,18 @@ export default function ProyectoPersonal() {
         "Error al actualizar el estado de la tarea personal:",
         error
       );
-    } else {
-      if (selectedProjectId) fetchTasks(selectedProjectId);
+      // Roll back the optimistic update if the database update fails
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === taskIdNumber
+            ? { ...task, task_status: sourceColumn.toString() }
+            : task
+        )
+      );
     }
+
+    // Fetch the latest tasks to ensure consistency
+    if (selectedProjectId) fetchTasks(selectedProjectId);
   };
 
   const filteredTasks = (status: string) => {
@@ -664,13 +678,6 @@ export default function ProyectoPersonal() {
               placeholder="Nombre del Proyecto Personal"
               className="p-2 w-full mb-2 border border-primary bg-[#f5f5f5] text-primary focus:outline-none focus:border-primary"
             />
-            <input
-              type="text"
-              value={newProjectDescription}
-              onChange={(e) => setNewProjectDescription(e.target.value)}
-              placeholder="Descripción"
-              className="p-2 w-full mb-2 border border-primary bg-[#f5f5f5] text-primary focus:outline-none focus:border-primary"
-            />
             <button
               onClick={handleAddProject}
               className="w-full bg-primary text-white py-2 rounded-lg hover:bg-[#DFDED4] transition-all"
@@ -738,6 +745,28 @@ export default function ProyectoPersonal() {
                     />
                   ))}
                 </div>
+                <DragOverlay>
+                  {activeTask ? (
+                    <motion.div
+                      className="p-1 bg-white rounded-lg flex justify-between items-center shadow-2xl border-4 border-primary pulse-border opacity-70 bg-primary/10"
+                      animate={{ scale: 1.1, rotate: 2 }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 500,
+                        damping: 30,
+                      }}
+                    >
+                      <div className="w-3/4">
+                        <span className="w-3/4">{activeTask.task_name}</span>
+                      </div>
+                      <div className="dropdown dropdown-bottom dropdown-end">
+                        <div tabIndex={0} role="button" className="btn m-1">
+                          ...
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : null}
+                </DragOverlay>
               </DndContext>
             </div>
           ) : (

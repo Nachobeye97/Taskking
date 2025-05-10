@@ -16,6 +16,7 @@ import {
   DragEndEvent,
   UniqueIdentifier,
   useDroppable,
+  DragOverlay,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -58,6 +59,7 @@ interface SortableTaskProps {
   handleTaskEdit: (taskId: number, e: React.MouseEvent) => void;
   handleDeleteTask: (taskId: number) => void;
   handleAssignTask: (taskId: number) => void;
+  selectedProjectId: number | null;
 }
 
 interface DroppableColumnProps {
@@ -71,6 +73,7 @@ interface DroppableColumnProps {
   handleTaskEdit: (taskId: number, e: React.MouseEvent) => void;
   handleDeleteTask: (taskId: number) => void;
   handleAssignTask: (taskId: number) => void;
+  selectedProjectId: number | null;
 }
 
 const DroppableColumn = ({
@@ -84,6 +87,7 @@ const DroppableColumn = ({
   handleTaskEdit,
   handleDeleteTask,
   handleAssignTask,
+  selectedProjectId,
 }: DroppableColumnProps) => {
   const { setNodeRef } = useDroppable({ id: status });
 
@@ -126,6 +130,7 @@ const DroppableColumn = ({
                 handleTaskEdit={handleTaskEdit}
                 handleDeleteTask={handleDeleteTask}
                 handleAssignTask={handleAssignTask}
+                selectedProjectId={selectedProjectId}
               />
             ))}
           </ul>
@@ -159,6 +164,7 @@ const SortableTask = memo(
     handleTaskEdit,
     handleDeleteTask,
     handleAssignTask,
+    selectedProjectId,
   }: SortableTaskProps) => {
     const {
       attributes,
@@ -169,10 +175,48 @@ const SortableTask = memo(
       isDragging,
     } = useSortable({ id: task.id });
 
+    const [assignedUser, setAssignedUser] = useState<{
+      display_name?: string;
+      email: string;
+    } | null>(null);
+
+    useEffect(() => {
+      const fetchAssignedUser = async () => {
+        if (task.assigned_to && selectedProjectId) {
+          const { data, error } = await supabase
+            .from("project_users")
+            .select("display_name, user_email")
+            .eq("project_id", selectedProjectId)
+            .eq("user_email", task.assigned_to)
+            .single();
+
+          if (error) {
+            console.error("Error fetching assigned user:", error.message);
+          } else if (data) {
+            setAssignedUser({
+              display_name: data.display_name,
+              email: data.user_email,
+            });
+          }
+        } else {
+          setAssignedUser(null);
+        }
+      };
+
+      fetchAssignedUser();
+    }, [task.assigned_to, selectedProjectId]);
+
+    const hoverTitle = assignedUser
+      ? `${assignedUser.display_name || assignedUser.email}${
+          assignedUser.display_name ? ` (${assignedUser.email})` : ""
+        }`
+      : task.assigned_to || "No asignada";
+
     const style = {
       transform: CSS.Transform.toString(transform),
       transition: isDragging ? "none" : "all 0.3s ease-out",
       zIndex: isDragging ? 50 : "auto",
+      opacity: isDragging ? 0.3 : 1,
     };
 
     return (
@@ -180,16 +224,12 @@ const SortableTask = memo(
         ref={setNodeRef}
         style={style}
         {...attributes}
-        className={`p-1 mb-2 bg-white rounded-lg flex justify-between items-center ${
-          isDragging
-            ? "shadow-2xl border-4 border-primary pulse-border opacity-70 bg-primary/10"
-            : "shadow-sm"
-        }`}
+        className={`p-1 mb-2 bg-white rounded-lg flex justify-between items-center shadow-sm`}
         animate={
           isDragging ? { scale: 1.1, rotate: 2 } : { scale: 1, rotate: 0 }
         }
         transition={{ type: "spring", stiffness: 500, damping: 30 }}
-        title={task.assigned_to || "No asignada"}
+        title={hoverTitle}
       >
         <div className="w-3/4" {...listeners}>
           {selectedTaskId === task.id ? (
@@ -287,6 +327,7 @@ export default function ProyectoGrupal() {
   );
   const [tempEmail, setTempEmail] = useState<string>("");
   const [tempDisplayName, setTempDisplayName] = useState<string>("");
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
   const router = useRouter();
 
   const sensors = useSensors(
@@ -1153,7 +1194,12 @@ export default function ProyectoGrupal() {
   };
 
   const handleDragStart = (event: DragStartEvent) => {
-    console.log("Drag started:", event.active.id);
+    const taskId = event.active.id;
+    const task = tasks.find((t) => t.id === Number(taskId));
+    if (task) {
+      setActiveTask(task);
+    }
+    console.log("Drag started:", taskId);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
@@ -1180,6 +1226,7 @@ export default function ProyectoGrupal() {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveColumn(null);
+    setActiveTask(null);
 
     if (!over) return;
 
@@ -1189,22 +1236,27 @@ export default function ProyectoGrupal() {
     const destinationColumn: UniqueIdentifier = over.id;
 
     const validStatuses = ["todo", "inProgress", "done", "paused"];
-    let finalDestinationColumn: string;
 
-    if (validStatuses.includes(destinationColumn.toString())) {
-      finalDestinationColumn = destinationColumn.toString();
-    } else {
-      const task = tasks.find((t) => t.id === Number(destinationColumn));
-      if (task) {
-        finalDestinationColumn = task.task_status;
-      } else {
-        return;
-      }
+    if (!validStatuses.includes(destinationColumn.toString())) {
+      return;
     }
+
+    const finalDestinationColumn: string = destinationColumn.toString();
 
     if (sourceColumn === finalDestinationColumn) return;
 
     const taskIdNumber = Number(taskId);
+
+    // Optimistically update the local tasks state
+    setTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === taskIdNumber
+          ? { ...task, task_status: finalDestinationColumn }
+          : task
+      )
+    );
+
+    // Update the task status in the database
     const { error } = await supabase
       .from("tasks")
       .update({ task_status: finalDestinationColumn })
@@ -1216,9 +1268,18 @@ export default function ProyectoGrupal() {
         error.message,
         error.details
       );
-    } else {
-      if (selectedProjectId) fetchTasks(selectedProjectId);
+      // Roll back the optimistic update if the database update fails
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === taskIdNumber
+            ? { ...task, task_status: sourceColumn.toString() }
+            : task
+        )
+      );
     }
+
+    // Fetch the latest tasks to ensure consistency
+    if (selectedProjectId) fetchTasks(selectedProjectId);
   };
 
   const filteredTasks = (status: string) => {
@@ -1520,9 +1581,32 @@ export default function ProyectoGrupal() {
                       handleTaskEdit={handleTaskEdit}
                       handleDeleteTask={handleDeleteTask}
                       handleAssignTask={handleAssignTask}
+                      selectedProjectId={selectedProjectId}
                     />
                   ))}
                 </div>
+                <DragOverlay>
+                  {activeTask ? (
+                    <motion.div
+                      className="p-1 bg-white rounded-lg flex justify-between items-center shadow-2xl border-4 border-primary pulse-border opacity-70 bg-primary/10"
+                      animate={{ scale: 1.1, rotate: 2 }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 500,
+                        damping: 30,
+                      }}
+                    >
+                      <div className="w-3/4">
+                        <span className="w-3/4">{activeTask.task_name}</span>
+                      </div>
+                      <div className="dropdown dropdown-bottom dropdown-end">
+                        <div tabIndex={0} role="button" className="btn m-1">
+                          ...
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : null}
+                </DragOverlay>
               </DndContext>
             </div>
           ) : (

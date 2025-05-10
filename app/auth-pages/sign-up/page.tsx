@@ -1,73 +1,109 @@
 "use client";
 
-import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient"; // Asegúrate de tener esta importación
+import { useState, useCallback } from "react";
+import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import Link from "next/link"; // Usamos Link de Next.js
+import Link from "next/link";
 
 export default function SignUp() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState(""); // Estado para la confirmación de la contraseña
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
-  const [errorMessage, setErrorMessage] = useState(""); // Para manejar los errores
+  const [errorMessage, setErrorMessage] = useState("");
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSignUp = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (loading) return; // Evitar múltiples envíos
 
-    // Validar que las contraseñas coinciden
-    if (password !== confirmPassword) {
-      setErrorMessage("Las contraseñas no coinciden");
-      return; // Evitar registrar si no coinciden
-    }
+      console.log("Attempting signup with email:", email); // Debugging
+      setErrorMessage("");
+      setLoading(true);
 
-    // Intentamos registrar al usuario
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp(
-      { email, password }
-    );
+      // Validar que las contraseñas coinciden
+      if (password !== confirmPassword) {
+        setErrorMessage("Las contraseñas no coinciden");
+        setLoading(false);
+        return;
+      }
 
-    if (signUpError) {
-      setErrorMessage("Error al registrarse: " + signUpError.message);
-    } else {
-      // Obtener el usuario recién registrado
-      const user = signUpData.user;
+      // Validar campos obligatorios
+      if (!email || !password || !firstName || !lastName) {
+        setErrorMessage("Por favor, completa todos los campos obligatorios");
+        setLoading(false);
+        return;
+      }
 
-      if (user) {
-        // Registrar la información adicional del usuario en la tabla 'users' de Supabase
-        const { error: insertError } = await supabase.from("users").insert([
-          {
-            id: user.id, // Usamos el ID del usuario autenticado
-            first_name: firstName,
-            last_name: lastName,
-            phone: phone,
-            email: user.email, // Ahora agregamos el email
-          },
-        ]);
+      try {
+        const { data: signUpData, error: signUpError } =
+          await supabase.auth.signUp({
+            email,
+            password,
+          });
 
-        if (insertError) {
-          setErrorMessage(
-            "Error al guardar los datos del usuario: " + insertError.message
-          );
-        } else {
+        if (signUpError) {
+          throw new Error(signUpError.message);
+        }
+
+        const user = signUpData.user;
+
+        if (user) {
+          const { error: insertError } = await supabase.from("users").insert([
+            {
+              id: user.id,
+              first_name: firstName,
+              last_name: lastName,
+              phone: phone,
+              email: user.email,
+            },
+          ]);
+
+          if (insertError) {
+            throw new Error(
+              "Error al guardar los datos del usuario: " + insertError.message
+            );
+          }
+
           alert(
             "¡Registro exitoso! Revisa tu correo para verificar tu cuenta."
           );
-          router.push("/auth-pages/sign-in"); // Redirige a la página de Sign In
+          router.push("/auth-pages/sign-in");
+        } else {
+          throw new Error("Error al obtener los datos del usuario");
         }
-      } else {
-        setErrorMessage("Error al obtener los datos del usuario");
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Error desconocido";
+        setErrorMessage(message);
+        if (message.includes("429")) {
+          setErrorMessage(
+            "Demasiadas solicitudes. Por favor, espera unos minutos e intenta de nuevo."
+          );
+        }
+      } finally {
+        setLoading(false);
       }
-    }
-  };
+    },
+    [
+      email,
+      password,
+      confirmPassword,
+      firstName,
+      lastName,
+      phone,
+      loading,
+      router,
+    ]
+  );
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-[#DFDED4] p-6">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-lg mt-0">
-        {" "}
-        {/* Cambié mt-10 a mt-0 para pegarlo más arriba */}
         <h1 className="text-2xl font-bold mb-4 text-center text-primary">
           Registrarse
         </h1>
@@ -81,6 +117,8 @@ export default function SignUp() {
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
             className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
+            required
+            disabled={loading}
           />
           <input
             type="text"
@@ -88,6 +126,8 @@ export default function SignUp() {
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
             className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
+            required
+            disabled={loading}
           />
           <input
             type="text"
@@ -95,6 +135,7 @@ export default function SignUp() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
+            disabled={loading}
           />
           <input
             type="email"
@@ -102,6 +143,8 @@ export default function SignUp() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
+            required
+            disabled={loading}
           />
           <input
             type="password"
@@ -109,6 +152,8 @@ export default function SignUp() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
+            required
+            disabled={loading}
           />
           <input
             type="password"
@@ -116,12 +161,19 @@ export default function SignUp() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             className="p-4 rounded-lg mb-4 border border-primary bg-[#f5f5f5] text-black focus:outline-none focus:border-primary transition duration-300"
+            required
+            disabled={loading}
           />
           <button
             type="submit"
-            className="px-6 py-2 border-2 border-primary text-primary rounded-lg shadow-md transition-all hover:bg-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+            className={`px-6 py-2 border-2 border-primary text-primary rounded-lg shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-primary ${
+              loading
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:bg-primary hover:text-white"
+            }`}
+            disabled={loading}
           >
-            Registrarse
+            {loading ? "Registrando..." : "Registrarse"}
           </button>
         </form>
         <p className="mt-4 text-center text-primary">
